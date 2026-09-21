@@ -1,22 +1,4 @@
-/**
- * THE BOUNDARY
- *
- * Browser-side game UI.
- *
- * No framework required.
- *
- * Expected HTML:
- *
- *   <div id="app"></div>
- *
- * The game communicates with the challenge workload through:
- *
- *   GET /command?cmd=<command>
- *
- * If you're running the terminal through a different Webernetes service,
- * change COMMAND_ENDPOINT below.
- */
-
+import "./style.css";
 const COMMAND_ENDPOINT = "/command";
 
 type GamePhase =
@@ -27,8 +9,16 @@ type GamePhase =
   | "isolation"
   | "complete";
 
+interface TerminalEntry {
+  type: "command" | "response";
+  text: string;
+}
+
 interface GameState {
   phase: GamePhase;
+
+  terminalHistory: TerminalEntry[];
+  commandRunning: boolean;
 
   discoveredCodeExecution: boolean;
   discoveredNode: boolean;
@@ -46,6 +36,9 @@ interface GameState {
 
 const state: GameState = {
   phase: "briefing",
+
+  terminalHistory: [],
+  commandRunning: false,
 
   discoveredCodeExecution: false,
   discoveredNode: false,
@@ -388,7 +381,7 @@ function renderTerminal(): string {
       </div>
 
       <div id="terminal-output" class="terminal-output">
-        ${renderWelcome()}
+        ${renderTerminalHistory()}
       </div>
 
       <form id="terminal-form" class="terminal-input">
@@ -400,15 +393,55 @@ function renderTerminal(): string {
           autocapitalize="off"
           spellcheck="false"
           aria-label="Terminal command"
+          ${state.commandRunning ? "disabled" : ""}
         />
 
-        <button type="submit" aria-label="Run command">
+        <button
+          type="submit"
+          aria-label="Run command"
+          ${state.commandRunning ? "disabled" : ""}
+        >
           ↵
         </button>
       </form>
 
     </div>
   `;
+}
+
+
+function renderTerminalHistory(): string {
+  let html = "";
+
+  if (state.terminalHistory.length === 0) {
+    html = renderWelcome();
+  } else {
+    html = state.terminalHistory
+      .map((entry) => {
+        if (entry.type === "command") {
+          return `
+            <pre class="terminal-line terminal-command">${escapeHtml(
+              entry.text,
+            )}</pre>
+          `;
+        }
+
+        return `
+          <pre class="terminal-line terminal-response">${escapeHtml(
+            entry.text,
+          )}</pre>
+        `;
+      })
+      .join("");
+  }
+
+  if (state.commandRunning) {
+    html += `
+      <pre class="terminal-line terminal-loading">Running...</pre>
+    `;
+  }
+
+  return html;
 }
 
 
@@ -440,6 +473,22 @@ function renderWelcome(): string {
 
     <br>
   `;
+}
+
+
+/**
+ * Escape command output before inserting it into HTML.
+ *
+ * This keeps terminal output as text rather than allowing command output
+ * to inject markup into the game UI.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 
@@ -870,10 +919,7 @@ function bindEvents(): void {
   const input =
     document.querySelector<HTMLInputElement>("#command-input");
 
-  const output =
-    document.querySelector<HTMLDivElement>("#terminal-output");
-
-  if (!form || !input || !output) {
+  if (!form || !input) {
     return;
   }
 
@@ -882,45 +928,34 @@ function bindEvents(): void {
 
     const command = input.value.trim();
 
-    if (!command) {
+    if (!command || state.commandRunning) {
       return;
     }
 
     input.value = "";
 
-    appendTerminalLine(
-      output,
-      `customer-a@image-processor:~$ ${command}`,
-      "terminal-command",
-    );
+    state.terminalHistory.push({
+      type: "command",
+      text: `customer-a@image-processor:~$ ${command}`,
+    });
 
-    appendTerminalLine(
-      output,
-      "Running...",
-      "terminal-loading",
-    );
-
-    const result = await runCommand(command);
-
-    const loadingLines =
-      output.querySelectorAll(".terminal-loading");
-
-    const lastLoading =
-      loadingLines[loadingLines.length - 1];
-
-    lastLoading?.remove();
-
-    inspectOutput(command, result);
-
-    appendTerminalLine(
-      output,
-      result,
-      "terminal-response",
-    );
+    state.commandRunning = true;
 
     render();
 
-    // Restore focus after re-render.
+    const result = await runCommand(command);
+
+    state.commandRunning = false;
+
+    inspectOutput(command, result);
+
+    state.terminalHistory.push({
+      type: "response",
+      text: result,
+    });
+
+    render();
+
     setTimeout(() => {
       document
         .querySelector<HTMLInputElement>("#command-input")
@@ -929,23 +964,6 @@ function bindEvents(): void {
   });
 
   input.focus();
-}
-
-
-function appendTerminalLine(
-  output: HTMLElement,
-  text: string,
-  className: string,
-): void {
-  const element = document.createElement("pre");
-
-  element.className = `terminal-line ${className}`;
-
-  element.textContent = text;
-
-  output.appendChild(element);
-
-  output.scrollTop = output.scrollHeight;
 }
 
 
