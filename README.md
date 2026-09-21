@@ -3,6 +3,7 @@ This is our first ever CTF-style challenge to discover security shortfalls of a 
 
 ## Challenge Layout
 
+```
 ┌─────────────────────────────────────────────────────────────┐
 │ TOP BAR / BRANDING                                          │
 ├─────────────────────────────────────────────────────────────┤
@@ -19,3 +20,4 @@ This is our first ever CTF-style challenge to discover security shortfalls of a 
 ├──────────────────────────────┴──────────────────────────────┤
 │ FOOTER LINKS                                                │
 └─────────────────────────────────────────────────────────────┘
+```
