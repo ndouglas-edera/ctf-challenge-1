@@ -1,5 +1,4 @@
 import "./style.css";
-const COMMAND_ENDPOINT = "/command";
 
 type GamePhase =
   | "briefing"
@@ -34,6 +33,18 @@ interface GameState {
   commandCount: number;
 }
 
+interface Objective {
+  id: string;
+  title: string;
+  description: string;
+  complete: boolean;
+}
+
+
+// ---------------------------------------------------------------------------
+// Game state
+// ---------------------------------------------------------------------------
+
 const state: GameState = {
   phase: "briefing",
 
@@ -54,6 +65,11 @@ const state: GameState = {
   commandCount: 0,
 };
 
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -61,36 +77,703 @@ if (!app) {
 }
 
 
-// ---------------------------------------------------------------------------
-// Command execution
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// SIMULATED WEBERNETES COMMAND ENGINE
+// ===========================================================================
+//
+// This is intentionally local to the browser.
+//
+// The goal is to simulate the investigation environment without requiring
+// a backend API while the challenge is being developed.
+//
+// Later, this function can be replaced with:
+//
+//   fetch("/command?cmd=...")
+//
+// or a real Webernetes service.
+//
+// ===========================================================================
 
 async function runCommand(command: string): Promise<string> {
   state.commandCount++;
 
-  try {
-    const response = await fetch(
-      `${COMMAND_ENDPOINT}?cmd=${encodeURIComponent(command)}`,
-    );
+  // Small delay makes the terminal feel like a real remote environment.
+  await sleep(350);
 
-    if (!response.ok) {
-      return `Command failed: HTTP ${response.status}`;
-    }
+  const normalized = command.trim().toLowerCase();
 
-    return await response.text();
-  } catch (error) {
+  if (!normalized) {
+    return "";
+  }
+
+  // -------------------------------------------------------------------------
+  // Help
+  // -------------------------------------------------------------------------
+
+  if (normalized === "help") {
     return [
-      "Unable to reach the challenge workload.",
+      "WEBERNETES SECURITY CONSOLE",
+      "===========================",
       "",
-      String(error),
+      "Available commands:",
+      "",
+      "  whoami",
+      "  hostname",
+      "  env",
+      "  ps",
+      "",
+      "  cat /etc/workload",
+      "  cat /etc/security-boundary",
+      "  cat /etc/node",
+      "",
+      "  kubectl get pods",
+      "  kubectl get namespaces",
+      "",
+      "  inspect workload",
+      "  inspect node",
+      "  scan kernel",
+      "",
+      "  exploit kernel",
+      "  list tenants",
+      "  access customer-b",
+      "  access platform",
+      "",
+      "  inspect isolation",
+      "  exploit isolated",
+      "  access isolated-neighbor",
+      "",
+      "  submit <flag>",
+      "",
+      "Hint:",
+      "The interesting question is not whether the workload is",
+      "isolated from a process perspective.",
+      "The interesting question is what happens when that",
+      "boundary is compromised.",
     ].join("\n");
   }
+
+
+  // -------------------------------------------------------------------------
+  // Basic shell commands
+  // -------------------------------------------------------------------------
+
+  if (normalized === "whoami") {
+    return [
+      "customer-a",
+      "",
+      "uid=1000(customer-a)",
+      "gid=1000(customer-a)",
+      "groups=customer-a,workload",
+    ].join("\n");
+  }
+
+
+  if (normalized === "hostname") {
+    state.discoveredNode = true;
+
+    return [
+      "image-processor.customer-a",
+      "",
+      "node: worker-02",
+    ].join("\n");
+  }
+
+
+  if (normalized === "env") {
+    state.discoveredCodeExecution = true;
+
+    return [
+      "WORKLOAD_NAME=image-processor",
+      "TENANT_ID=customer-a",
+      "EXECUTION_MODE=customer-supplied",
+      "CODE_EXECUTION=arbitrary",
+      "PLATFORM=webernetes",
+      "NODE=worker-02",
+    ].join("\n");
+  }
+
+
+  if (normalized === "ps") {
+    return [
+      "PID   USER          COMMAND",
+      "1     customer-a   /app/image-processor",
+      "17    customer-a   python worker.py",
+      "23    customer-a   /bin/sh",
+      "",
+      "NOTE:",
+      "This workload is executing customer-supplied processing code.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Workload inspection
+  // -------------------------------------------------------------------------
+
+  if (normalized === "cat /etc/workload") {
+    state.discoveredCodeExecution = true;
+
+    return [
+      "ACME COMPUTE WORKLOAD MANIFEST",
+      "==============================",
+      "",
+      "workload: image-processor",
+      "tenant: customer-a",
+      "node: worker-02",
+      "",
+      "execution:",
+      "  mode: customer-supplied",
+      "  arbitrary-code: enabled",
+      "  trust-level: untrusted",
+      "",
+      "container:",
+      "  runtime: containerd",
+      "  isolation: linux namespaces + cgroups",
+      "",
+      "security note:",
+      "Customer code is intentionally untrusted.",
+    ].join("\n");
+  }
+
+
+  if (normalized === "cat /etc/security-boundary") {
+    state.discoveredSharedKernel = true;
+
+    return [
+      "SECURITY BOUNDARY",
+      "=================",
+      "",
+      "workload isolation: container",
+      "process isolation: namespaces",
+      "resource isolation: cgroups",
+      "",
+      "kernel isolation: NONE",
+      "",
+      "All containers on this node execute against",
+      "the same Linux kernel.",
+      "",
+      "SECURITY BOUNDARY:",
+      "  container namespace",
+      "        |",
+      "        v",
+      "  shared Linux kernel",
+      "",
+      "WARNING:",
+      "A kernel compromise may cross container boundaries.",
+    ].join("\n");
+  }
+
+
+  if (normalized === "cat /etc/node") {
+    state.discoveredNode = true;
+    state.discoveredSharedKernel = true;
+
+    return [
+      "NODE INFORMATION",
+      "================",
+      "",
+      "node: worker-02",
+      "provider: acme-compute",
+      "orchestrator: webernetes",
+      "runtime: containerd",
+      "",
+      "kernel:",
+      "  Linux 6.8.12-acme",
+      "  kernel-id: acme-kernel-001",
+      "",
+      "workloads sharing node:",
+      "  image-processor.customer-a",
+      "  billing-api.customer-b",
+      "  platform-controller",
+      "",
+      "All listed workloads share the host kernel.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Kubernetes / Webernetes commands
+  // -------------------------------------------------------------------------
+
+  if (normalized === "kubectl get pods") {
+    state.discoveredNode = true;
+
+    return [
+      "NAMESPACE      NAME                         READY   STATUS",
+      "customer-a     image-processor             1/1     Running",
+      "customer-b     billing-api                 1/1     Running",
+      "platform       platform-controller         1/1     Running",
+      "",
+      "NODE",
+      "----",
+      "image-processor             worker-02",
+      "billing-api                 worker-02",
+      "platform-controller         worker-02",
+    ].join("\n");
+  }
+
+
+  if (normalized === "kubectl get namespaces") {
+    return [
+      "NAME",
+      "----",
+      "default",
+      "customer-a",
+      "customer-b",
+      "platform",
+      "kube-system",
+      "",
+      "NOTE:",
+      "Namespaces provide logical separation.",
+      "They do not create independent Linux kernels.",
+    ].join("\n");
+  }
+
+
+  if (normalized.startsWith("kubectl")) {
+    return [
+      `kubectl: unknown command "${command.slice(8).trim()}"`,
+      "",
+      "Try:",
+      "  kubectl get pods",
+      "  kubectl get namespaces",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Investigation helpers
+  // -------------------------------------------------------------------------
+
+  if (normalized === "inspect workload") {
+    state.discoveredCodeExecution = true;
+
+    return [
+      "WORKLOAD INSPECTION",
+      "===================",
+      "",
+      "name: image-processor",
+      "tenant: customer-a",
+      "status: compromised",
+      "",
+      "execution model:",
+      "  customer-supplied processing code",
+      "  arbitrary code execution: YES",
+      "",
+      "container boundary:",
+      "  namespaces: enabled",
+      "  cgroups: enabled",
+      "",
+      "kernel boundary:",
+      "  isolated kernel: NO",
+      "  shared host kernel: YES",
+    ].join("\n");
+  }
+
+
+  if (normalized === "inspect node") {
+    state.discoveredNode = true;
+    state.discoveredSharedKernel = true;
+
+    return [
+      "NODE INSPECTION",
+      "===============",
+      "",
+      "node: worker-02",
+      "kernel: Linux 6.8.12-acme",
+      "kernel-id: acme-kernel-001",
+      "",
+      "ACTIVE WORKLOADS",
+      "----------------",
+      "customer-a/image-processor",
+      "customer-b/billing-api",
+      "platform/platform-controller",
+      "",
+      "BOUNDARY:",
+      "All workloads share the same kernel.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Kernel investigation
+  // -------------------------------------------------------------------------
+
+  if (normalized === "scan kernel") {
+    state.discoveredNode = true;
+    state.discoveredSharedKernel = true;
+    state.kernelScanned = true;
+    state.phase = "kernel";
+
+    return [
+      "KERNEL SECURITY SCAN",
+      "=====================",
+      "",
+      "target: worker-02",
+      "kernel-id: acme-kernel-001",
+      "",
+      "[+] Enumerating kernel attack surface...",
+      "[+] Checking namespace boundary...",
+      "[+] Checking privilege transitions...",
+      "[+] Checking shared-kernel interfaces...",
+      "",
+      "FINDING: KERNEL-ESC-001",
+      "-----------------------",
+      "",
+      "severity: HIGH",
+      "component: shared Linux kernel",
+      "status: exploitable",
+      "",
+      "A successful kernel compromise would execute",
+      "outside the originating container namespace.",
+      "",
+      "Potential impact:",
+      "  - access to other workloads",
+      "  - access to node resources",
+      "  - access to platform services",
+      "",
+      "NEXT STEP:",
+      "Determine the blast radius.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Kernel exploitation
+  // -------------------------------------------------------------------------
+
+  if (normalized === "exploit kernel") {
+    if (!state.kernelScanned) {
+      return [
+        "EXPLOIT BLOCKED",
+        "",
+        "You have not established a kernel vulnerability.",
+        "",
+        "Try:",
+        "  scan kernel",
+      ].join("\n");
+    }
+
+    state.kernelCompromised = true;
+    state.phase = "blast-radius";
+
+    return [
+      "KERNEL EXPLOIT",
+      "==============",
+      "",
+      "[+] Preparing exploit...",
+      "[+] Target: acme-kernel-001",
+      "[+] Crossing container namespace...",
+      "[+] Kernel privilege boundary reached.",
+      "",
+      "KERNEL COMPROMISED",
+      "==================",
+      "",
+      "The attacker is no longer confined to the",
+      "original customer-a container.",
+      "",
+      "You now have node-level access.",
+      "",
+      "The container boundary has been bypassed.",
+      "",
+      "NEXT STEP:",
+      "Determine what else is reachable.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Tenant discovery
+  // -------------------------------------------------------------------------
+
+  if (normalized === "list tenants") {
+    if (!state.kernelCompromised) {
+      return [
+        "ACCESS DENIED",
+        "",
+        "Tenant enumeration requires node-level access.",
+        "",
+        "Investigate the shared kernel first.",
+      ].join("\n");
+    }
+
+    return [
+      "NODE-LEVEL TENANT ENUMERATION",
+      "=============================",
+      "",
+      "worker-02 workloads:",
+      "",
+      "1. customer-a/image-processor",
+      "   status: compromised",
+      "",
+      "2. customer-b/billing-api",
+      "   status: running",
+      "",
+      "3. platform/platform-controller",
+      "   status: running",
+      "",
+      "All three workloads are backed by the same",
+      "Linux kernel.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Cross-tenant access
+  // -------------------------------------------------------------------------
+
+  if (normalized === "access customer-b") {
+    if (!state.kernelCompromised) {
+      return [
+        "ACCESS DENIED",
+        "",
+        "customer-b is outside the current container boundary.",
+        "",
+        "A successful kernel compromise is required.",
+      ].join("\n");
+    }
+
+    state.customerBAccessed = true;
+
+    return [
+      "CROSS-TENANT ACCESS",
+      "===================",
+      "",
+      "[+] Enumerating node workloads...",
+      "[+] Found customer-b/billing-api",
+      "[+] Accessing workload context...",
+      "",
+      "ACCESS GRANTED",
+      "",
+      "tenant: customer-b",
+      "workload: billing-api",
+      "node: worker-02",
+      "",
+      "RESULT:",
+      "The compromised customer-a workload can reach",
+      "another tenant after crossing the shared kernel.",
+    ].join("\n");
+  }
+
+
+  if (normalized === "access platform") {
+    if (!state.kernelCompromised) {
+      return [
+        "ACCESS DENIED",
+        "",
+        "Platform services are outside the current",
+        "container boundary.",
+      ].join("\n");
+    }
+
+    state.platformAccessed = true;
+
+    return [
+      "PLATFORM ACCESS",
+      "===============",
+      "",
+      "[+] Enumerating node resources...",
+      "[+] Found platform-controller",
+      "[+] Found kube-system services",
+      "",
+      "ACCESS GRANTED",
+      "",
+      "The compromised workload has reached services",
+      "outside its original tenant boundary.",
+      "",
+      "IMPACT:",
+      "  customer workloads",
+      "  platform services",
+      "  node resources",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Isolation comparison
+  // -------------------------------------------------------------------------
+
+  if (normalized === "inspect isolation") {
+    state.isolatedDiscovered = true;
+    state.phase = "isolation";
+
+    return [
+      "ISOLATION LAB",
+      "=============",
+      "",
+      "A second workload is available for comparison.",
+      "",
+      "workload: customer-c/ai-agent",
+      "execution: untrusted",
+      "",
+      "isolation model:",
+      "  container: YES",
+      "  dedicated zone: YES",
+      "  zone kernel: YES",
+      "  shared host kernel: NO",
+      "",
+      "boundary:",
+      "",
+      "  customer-c workload",
+      "          |",
+      "          v",
+      "     zone kernel",
+      "          |",
+      "          v",
+      "       hardware",
+      "",
+      "The workload does not share its kernel with",
+      "unrelated tenant workloads.",
+      "",
+      "NEXT STEP:",
+      "Test the same compromise.",
+    ].join("\n");
+  }
+
+
+  if (normalized === "exploit isolated") {
+    if (!state.isolatedDiscovered) {
+      return [
+        "TARGET NOT FOUND",
+        "",
+        "Discover the isolated workload first.",
+        "",
+        "Try:",
+        "  inspect isolation",
+      ].join("\n");
+    }
+
+    state.isolatedTested = true;
+
+    return [
+      "ISOLATED ZONE TEST",
+      "==================",
+      "",
+      "[+] Simulating workload compromise...",
+      "[+] Attacker gains control of customer-c workload.",
+      "[+] Attempting kernel boundary traversal...",
+      "",
+      "BOUNDARY REACHED",
+      "",
+      "The workload has access to its isolated zone.",
+      "",
+      "ATTEMPTING CROSS-TENANT ACCESS...",
+      "",
+      "BLOCKED",
+      "",
+      "No shared host kernel was available to cross.",
+      "",
+      "RESULT:",
+      "The same workload compromise does not provide",
+      "direct access to unrelated tenant workloads.",
+    ].join("\n");
+  }
+
+
+  if (normalized === "access isolated-neighbor") {
+    if (!state.isolatedDiscovered) {
+      return [
+        "TARGET NOT FOUND",
+        "",
+        "Discover the isolated workload first.",
+      ].join("\n");
+    }
+
+    state.isolatedTested = true;
+
+    return [
+      "CROSS-ZONE ACCESS TEST",
+      "======================",
+      "",
+      "source: customer-c/ai-agent",
+      "target: unrelated tenant",
+      "",
+      "[+] Attempting access...",
+      "[+] Attempting shared-kernel traversal...",
+      "",
+      "ACCESS BLOCKED",
+      "",
+      "The target workload is outside the isolated zone.",
+      "",
+      "No shared kernel connects the two workloads.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Flag submission
+  // -------------------------------------------------------------------------
+
+  if (normalized.startsWith("submit ")) {
+    const submittedFlag = command.trim().slice(7).trim();
+
+    const correctFlag = "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}";
+
+    if (submittedFlag === correctFlag) {
+      state.flagSubmitted = true;
+      state.phase = "complete";
+
+      return [
+        "SUBMISSION",
+        "==========",
+        "",
+        "ACCESS GRANTED",
+        "",
+        "Flag accepted.",
+        "",
+        "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}",
+        "",
+        "INVESTIGATION COMPLETE",
+        "",
+        "You established:",
+        "",
+        "  1. The workload executes untrusted code.",
+        "  2. Containers share the node kernel.",
+        "  3. The kernel is a security boundary.",
+        "  4. Kernel compromise crosses container boundaries.",
+        "  5. The resulting blast radius includes other workloads.",
+        "  6. An isolated execution zone changes that boundary.",
+        "",
+        "THE BOUNDARY WAS THE KERNEL.",
+      ].join("\n");
+    }
+
+    return [
+      "SUBMISSION REJECTED",
+      "",
+      "That flag is not correct.",
+      "",
+      "Review the investigation findings and try again.",
+    ].join("\n");
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Unknown command
+  // -------------------------------------------------------------------------
+
+  return [
+    `command not found: ${command}`,
+    "",
+    "Type 'help' for available commands.",
+  ].join("\n");
 }
 
 
 // ---------------------------------------------------------------------------
-// Game state detection
+// Utility
 // ---------------------------------------------------------------------------
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+
+// ===========================================================================
+// GAME STATE DETECTION
+// ===========================================================================
 
 function inspectOutput(command: string, output: string): void {
   const text = `${command}\n${output}`.toLowerCase();
@@ -120,14 +803,15 @@ function inspectOutput(command: string, output: string): void {
 
   if (
     text.includes("acme-kernel-001") ||
-    text.includes("cve-like finding")
+    text.includes("cve-like finding") ||
+    text.includes("kernel-esc-001")
   ) {
     state.kernelScanned = true;
     state.phase = "kernel";
   }
 
   if (
-    command === "exploit kernel" &&
+    command.trim().toLowerCase() === "exploit kernel" &&
     text.includes("kernel compromised")
   ) {
     state.kernelCompromised = true;
@@ -135,14 +819,14 @@ function inspectOutput(command: string, output: string): void {
   }
 
   if (
-    command === "access customer-b" &&
+    command.trim().toLowerCase() === "access customer-b" &&
     text.includes("customer-b")
   ) {
     state.customerBAccessed = true;
   }
 
   if (
-    command === "access platform" &&
+    command.trim().toLowerCase() === "access platform" &&
     text.includes("platform")
   ) {
     state.platformAccessed = true;
@@ -150,21 +834,22 @@ function inspectOutput(command: string, output: string): void {
 
   if (
     text.includes("isolated workload") ||
-    text.includes("isolated zone")
+    text.includes("isolated zone") ||
+    text.includes("zone kernel")
   ) {
     state.isolatedDiscovered = true;
     state.phase = "isolation";
   }
 
   if (
-    command === "exploit isolated" ||
-    command === "access isolated-neighbor"
+    command.trim().toLowerCase() === "exploit isolated" ||
+    command.trim().toLowerCase() === "access isolated-neighbor"
   ) {
     state.isolatedTested = true;
   }
 
   if (
-    command.startsWith("submit ") &&
+    command.trim().toLowerCase().startsWith("submit ") &&
     text.includes("access granted")
   ) {
     state.flagSubmitted = true;
@@ -173,6 +858,7 @@ function inspectOutput(command: string, output: string): void {
 
   updatePhase();
 }
+
 
 function updatePhase(): void {
   if (state.flagSubmitted) {
@@ -199,9 +885,9 @@ function updatePhase(): void {
 }
 
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// RENDERING
+// ===========================================================================
 
 function render(): void {
   app.innerHTML = `
@@ -258,9 +944,9 @@ function render(): void {
 }
 
 
-// ---------------------------------------------------------------------------
-// Top bar
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// TOP BAR
+// ===========================================================================
 
 function renderTopBar(): string {
   return `
@@ -294,9 +980,9 @@ function renderTopBar(): string {
 }
 
 
-// ---------------------------------------------------------------------------
-// Mission briefing
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// MISSION
+// ===========================================================================
 
 function renderMission(): string {
   if (state.flagSubmitted) {
@@ -356,9 +1042,9 @@ function renderMission(): string {
 }
 
 
-// ---------------------------------------------------------------------------
-// Terminal
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// TERMINAL
+// ===========================================================================
 
 function renderTerminal(): string {
   return `
@@ -476,12 +1162,6 @@ function renderWelcome(): string {
 }
 
 
-/**
- * Escape command output before inserting it into HTML.
- *
- * This keeps terminal output as text rather than allowing command output
- * to inject markup into the game UI.
- */
 function escapeHtml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
@@ -492,9 +1172,9 @@ function escapeHtml(text: string): string {
 }
 
 
-// ---------------------------------------------------------------------------
-// Architecture diagram
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ARCHITECTURE
+// ===========================================================================
 
 function renderArchitecture(): string {
   if (state.phase === "complete") {
@@ -762,16 +1442,9 @@ function renderIsolatedArchitecture(): string {
 }
 
 
-// ---------------------------------------------------------------------------
-// Objectives
-// ---------------------------------------------------------------------------
-
-interface Objective {
-  id: string;
-  title: string;
-  description: string;
-  complete: boolean;
-}
+// ===========================================================================
+// OBJECTIVES
+// ===========================================================================
 
 function getObjectives(): Objective[] {
   return [
@@ -785,7 +1458,8 @@ function getObjectives(): Objective[] {
       id: "node",
       title: "Identify the execution boundary",
       description: "Find out which node and kernel the workload uses.",
-      complete: state.discoveredNode && state.discoveredSharedKernel,
+      complete:
+        state.discoveredNode && state.discoveredSharedKernel,
     },
     {
       id: "kernel",
@@ -861,7 +1535,9 @@ function getCurrentObjectiveIndex(): number {
     (objective) => !objective.complete,
   );
 
-  return index === -1 ? objectives.length - 1 : index;
+  return index === -1
+    ? objectives.length - 1
+    : index;
 }
 
 
@@ -872,13 +1548,15 @@ function getProgress(): number {
     (objective) => objective.complete,
   ).length;
 
-  return Math.round((completed / objectives.length) * 100);
+  return Math.round(
+    (completed / objectives.length) * 100,
+  );
 }
 
 
-// ---------------------------------------------------------------------------
-// Footer
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// FOOTER
+// ===========================================================================
 
 function renderFooter(): string {
   return `
@@ -908,82 +1586,107 @@ function renderFooter(): string {
 }
 
 
-// ---------------------------------------------------------------------------
-// Events
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// EVENTS
+// ===========================================================================
 
 function bindEvents(): void {
   const form =
-    document.querySelector<HTMLFormElement>("#terminal-form");
+    document.querySelector<HTMLFormElement>(
+      "#terminal-form",
+    );
 
   const input =
-    document.querySelector<HTMLInputElement>("#command-input");
+    document.querySelector<HTMLInputElement>(
+      "#command-input",
+    );
 
   if (!form || !input) {
     return;
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  form.addEventListener(
+    "submit",
+    async (event) => {
+      event.preventDefault();
 
-    const command = input.value.trim();
+      const command = input.value.trim();
 
-    if (!command || state.commandRunning) {
-      return;
-    }
+      if (
+        !command ||
+        state.commandRunning
+      ) {
+        return;
+      }
 
-    input.value = "";
+      input.value = "";
 
-    state.terminalHistory.push({
-      type: "command",
-      text: `customer-a@image-processor:~$ ${command}`,
-    });
+      state.terminalHistory.push({
+        type: "command",
+        text:
+          `customer-a@image-processor:~$ ${command}`,
+      });
 
-    state.commandRunning = true;
+      state.commandRunning = true;
 
-    render();
+      render();
 
-    const result = await runCommand(command);
+      const result =
+        await runCommand(command);
 
-    state.commandRunning = false;
+      state.commandRunning = false;
 
-    inspectOutput(command, result);
+      inspectOutput(
+        command,
+        result,
+      );
 
-    state.terminalHistory.push({
-      type: "response",
-      text: result,
-    });
+      state.terminalHistory.push({
+        type: "response",
+        text: result,
+      });
 
-    render();
+      render();
 
-    setTimeout(() => {
-      document
-        .querySelector<HTMLInputElement>("#command-input")
-        ?.focus();
-    }, 0);
-  });
+      setTimeout(() => {
+        document
+          .querySelector<HTMLInputElement>(
+            "#command-input",
+          )
+          ?.focus();
+      }, 0);
+    },
+  );
 
   input.focus();
 }
 
 
-// ---------------------------------------------------------------------------
-// Keyboard shortcuts
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// KEYBOARD SHORTCUTS
+// ===========================================================================
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
-    event.preventDefault();
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      event.key === "/" &&
+      document.activeElement?.tagName !== "INPUT"
+    ) {
+      event.preventDefault();
 
-    document
-      .querySelector<HTMLInputElement>("#command-input")
-      ?.focus();
-  }
-});
+      document
+        .querySelector<HTMLInputElement>(
+          "#command-input",
+        )
+        ?.focus();
+    }
+  },
+);
 
 
-// ---------------------------------------------------------------------------
-// Initial render
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// INITIAL RENDER
+// ===========================================================================
 
 render();
