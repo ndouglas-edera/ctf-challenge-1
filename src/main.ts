@@ -8,12 +8,8 @@ type GamePhase =
   | "isolation"
   | "complete";
 
-type Environment = "customer-workload" | "isolated-zone";
-
 interface GameState {
   phase: GamePhase;
-  environment: Environment;
-  cwd: string;
 
   discoveredCodeExecution: boolean;
   discoveredNode: boolean;
@@ -30,25 +26,12 @@ interface GameState {
 }
 
 interface TerminalEntry {
-  type: "command" | "output" | "success" | "error";
+  kind: "command" | "output" | "system";
   text: string;
 }
 
-interface VirtualFile {
-  path: string;
-  kind: "file" | "directory";
-  owner: string;
-  group: string;
-  mode: string;
-  content?: string;
-}
-
-const FLAG = "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}";
-
 const state: GameState = {
   phase: "briefing",
-  environment: "customer-workload",
-  cwd: "/home/customer",
 
   discoveredCodeExecution: false,
   discoveredNode: false,
@@ -66,557 +49,16 @@ const state: GameState = {
 
 const terminalHistory: TerminalEntry[] = [];
 
-/* -------------------------------------------------------------------------- */
-/* Virtual filesystem                                                         */
-/* -------------------------------------------------------------------------- */
+const PROMPT = "customer-a@image-processor:~$";
 
-const CUSTOMER_FILES: VirtualFile[] = [
-  {
-    path: "/",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-
-  ...[
-    "/app",
-    "/bin",
-    "/dev",
-    "/etc",
-    "/home",
-    "/home/customer",
-    "/proc",
-    "/sys",
-    "/tmp",
-    "/opt",
-    "/opt/diagnostics",
-    "/opt/tools",
-    "/var",
-    "/var/log",
-  ].map((path) => ({
-    path,
-    kind: "directory" as const,
-    owner: path.startsWith("/home") ? "customer" : "root",
-    group: path.startsWith("/home") ? "customer" : "root",
-    mode: "drwxr-xr-x",
-  })),
-
-  {
-    path: "/home/customer/.profile",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rw-r--r--",
-    content: [
-      "# customer shell profile",
-      "export TENANT=customer-a",
-      "export WORKLOAD=image-processor",
-      "export EXECUTION_MODE=untrusted",
-    ].join("\n"),
-  },
-
-  {
-    path: "/home/customer/workload.yaml",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rw-r--r--",
-    content: [
-      "apiVersion: v1",
-      "kind: Workload",
-      "metadata:",
-      "  name: image-processor",
-      "  namespace: customer-a",
-      "spec:",
-      "  executionMode: untrusted",
-      "  customerCode: enabled",
-      "  isolation: container",
-    ].join("\n"),
-  },
-
-  {
-    path: "/app/image-processor",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "",
-      "# Image processing worker",
-      "# Executes customer-supplied processing code.",
-      "",
-      "python /app/worker.py",
-    ].join("\n"),
-  },
-
-  {
-    path: "/app/worker.py",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rw-r--r--",
-    content: [
-      "import os",
-      "",
-      "print('image processor ready')",
-      "",
-      "# customer-supplied processing hooks",
-      "def process(image):",
-      "    return image",
-    ].join("\n"),
-  },
-
-  {
-    path: "/etc/hostname",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rw-r--r--",
-    content: "image-processor.customer-a",
-  },
-
-  {
-    path: "/etc/workload",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "WORKLOAD PROFILE",
-      "----------------",
-      "tenant: customer-a",
-      "application: image-processor",
-      "execution: arbitrary customer processing code",
-      "trust level: untrusted",
-      "",
-      "The workload is intentionally allowed to execute",
-      "customer-supplied code.",
-    ].join("\n"),
-  },
-
-  {
-    path: "/etc/security-boundary",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "SECURITY BOUNDARY",
-      "-----------------",
-      "isolation: Linux containers",
-      "process namespaces: enabled",
-      "filesystem isolation: enabled",
-      "network namespace: enabled",
-      "",
-      "WARNING:",
-      "Containers share the host Linux kernel.",
-    ].join("\n"),
-  },
-
-  {
-    path: "/etc/node",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "NODE INFORMATION",
-      "----------------",
-      "node: worker-02",
-      "runtime: containerd",
-      "kernel: Linux 6.x",
-      "kernel-id: acme-kernel-001",
-      "",
-      "Multiple customer workloads run on this node.",
-    ].join("\n"),
-  },
-
-  {
-    path: "/proc/version",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content:
-      "Linux version 6.8.0-acme (builder@acme-infra) #1 SMP PREEMPT_DYNAMIC",
-  },
-
-  {
-    path: "/proc/1/status",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "Name:\timage-processor",
-      "State:\tS (sleeping)",
-      "Pid:\t1",
-      "Uid:\t1000\t1000\t1000\t1000",
-      "Gid:\t1000\t1000\t1000\t1000",
-    ].join("\n"),
-  },
-
-  {
-    path: "/proc/1/cgroup",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: "0::/kubepods.slice/customer-a/image-processor",
-  },
-
-  {
-    path: "/opt/diagnostics/node-info.sh",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "cat /etc/node",
-      "cat /proc/version",
-    ].join("\n"),
-  },
-
-  {
-    path: "/opt/diagnostics/check-boundary.sh",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "cat /etc/security-boundary",
-      "cat /etc/node",
-      "kubectl get pods",
-    ].join("\n"),
-  },
-
-  {
-    path: "/opt/tools/tenant-map",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "kubectl get namespaces",
-      "kubectl get pods",
-    ].join("\n"),
-  },
-
-  {
-    path: "/var/log/workload.log",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rw-r--r--",
-    content: [
-      "worker-02/image-processor started",
-      "container runtime: containerd",
-      "tenant: customer-a",
-      "execution mode: untrusted",
-    ].join("\n"),
-  },
+const OBJECTIVES = [
+  "Find untrusted code",
+  "Identify execution boundary",
+  "Investigate kernel",
+  "Measure blast radius",
+  "Test isolated execution",
+  "Submit finding",
 ];
-
-const HOST_FILES: VirtualFile[] = [
-  {
-    path: "/host",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/etc",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/etc/node-config",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rw-r--r--",
-    content: [
-      "NODE CONFIGURATION",
-      "------------------",
-      "node=worker-02",
-      "kernel-id=acme-kernel-001",
-      "runtime=containerd",
-      "orchestrator=webernetes",
-      "tenant-density=4",
-    ].join("\n"),
-  },
-  {
-    path: "/host/var",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/var/lib",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/var/lib/kubelet",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/var/lib/kubelet/pods",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  ...["customer-a", "customer-b", "customer-c", "platform"].map(
-    (tenant) => ({
-      path: `/host/var/lib/kubelet/pods/${tenant}`,
-      kind: "directory" as const,
-      owner: "root",
-      group: "root",
-      mode: "drwxr-xr-x",
-    }),
-  ),
-  {
-    path: "/host/var/lib/containers",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-  {
-    path: "/host/var/lib/containers/tenant-map",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rw-r--r--",
-    content: [
-      "customer-a=image-processor",
-      "customer-b=billing-api",
-      "customer-c=recommendation",
-      "platform=platform-agent",
-    ].join("\n"),
-  },
-];
-
-const ISOLATED_FILES: VirtualFile[] = [
-  {
-    path: "/",
-    kind: "directory",
-    owner: "root",
-    group: "root",
-    mode: "drwxr-xr-x",
-  },
-
-  ...[
-    "/bin",
-    "/dev",
-    "/etc",
-    "/home",
-    "/home/customer",
-    "/home/customer/app",
-    "/home/customer/scripts",
-    "/proc",
-    "/tmp",
-  ].map((path) => ({
-    path,
-    kind: "directory" as const,
-    owner: path.startsWith("/home") ? "customer" : "root",
-    group: path.startsWith("/home") ? "customer" : "root",
-    mode: "drwxr-xr-x",
-  })),
-
-  {
-    path: "/etc/workload",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "WORKLOAD PROFILE",
-      "----------------",
-      "tenant=customer-c",
-      "application=ai-agent",
-      "execution_mode=untrusted",
-      "trust_level=customer-supplied-code",
-    ].join("\n"),
-  },
-
-  {
-    path: "/etc/security-boundary",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "ISOLATION",
-      "---------",
-      "type=isolated-execution-zone",
-      "kernel=dedicated",
-      "host_kernel=none",
-      "hardware_boundary=enabled",
-      "neighbor_access=blocked",
-    ].join("\n"),
-  },
-
-  {
-    path: "/etc/node",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "EXECUTION ZONE",
-      "--------------",
-      "zone=isolated-zone-01",
-      "kernel=zone-kernel-01",
-      "host_kernel=none",
-      "hardware_boundary=enabled",
-    ].join("\n"),
-  },
-
-  {
-    path: "/home/customer/app/ai-agent",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "",
-      "# Customer AI agent",
-      "# Executes untrusted agent code inside an isolated zone.",
-      "",
-      "echo 'agent ready'",
-    ].join("\n"),
-  },
-
-  {
-    path: "/home/customer/scripts/check-boundary.sh",
-    kind: "file",
-    owner: "customer",
-    group: "customer",
-    mode: "-rwxr-xr-x",
-    content: [
-      "#!/bin/sh",
-      "cat /etc/security-boundary",
-      "cat /etc/node",
-    ].join("\n"),
-  },
-
-  {
-    path: "/proc/version",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content:
-      "Linux version 6.8.0-edera-zone (zone@isolated-runtime) #1 SMP",
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Filesystem helpers                                                         */
-/* -------------------------------------------------------------------------- */
-
-function activeFilesystem(): VirtualFile[] {
-  if (state.environment === "isolated-zone") {
-    return ISOLATED_FILES;
-  }
-
-  const files = [...CUSTOMER_FILES];
-
-  if (state.kernelCompromised) {
-    files.push(...HOST_FILES);
-  }
-
-  return files;
-}
-
-function normalizePath(input: string, base = state.cwd): string {
-  let path = input.trim();
-
-  if (!path) {
-    return base;
-  }
-
-  if (path === "~") {
-    return "/home/customer";
-  }
-
-  if (path.startsWith("~/")) {
-    path = `/home/customer/${path.slice(2)}`;
-  } else if (!path.startsWith("/")) {
-    path = `${base}/${path}`;
-  }
-
-  const parts: string[] = [];
-
-  for (const part of path.split("/")) {
-    if (!part || part === ".") continue;
-
-    if (part === "..") {
-      parts.pop();
-      continue;
-    }
-
-    parts.push(part);
-  }
-
-  return `/${parts.join("/")}` || "/";
-}
-
-function getFile(path: string): VirtualFile | undefined {
-  const normalized = normalizePath(path);
-
-  return activeFilesystem().find(
-    (file) => file.path === normalized,
-  );
-}
-
-function directoryExists(path: string): boolean {
-  return getFile(path)?.kind === "directory";
-}
-
-function directoryEntries(path: string): VirtualFile[] {
-  const normalized = normalizePath(path);
-
-  return activeFilesystem().filter((file) => {
-    if (file.path === normalized) return false;
-
-    const parent =
-      file.path.slice(0, file.path.lastIndexOf("/")) || "/";
-
-    return parent === normalized;
-  });
-}
-
-function displayPath(path: string): string {
-  if (path === "/home/customer") return "~";
-
-  if (path.startsWith("/home/customer/")) {
-    return `~/${path.slice("/home/customer/".length)}`;
-  }
-
-  return path;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Terminal helpers                                                           */
-/* -------------------------------------------------------------------------- */
 
 function escapeHtml(value: string): string {
   return value
@@ -627,356 +69,471 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function promptText(): string {
-  if (state.environment === "isolated-zone") {
-    return `customer-c@ai-agent:${displayPath(state.cwd)}$`;
+function getObjectiveState(index: number): "complete" | "current" | "pending" {
+  const completed = [
+    state.discoveredCodeExecution,
+    state.discoveredSharedKernel,
+    state.kernelScanned && state.kernelCompromised,
+    state.customerBAccessed && state.platformAccessed,
+    state.isolatedTested,
+    state.flagSubmitted,
+  ];
+
+  if (completed[index]) {
+    return "complete";
   }
 
-  return `customer-a@image-processor:${displayPath(state.cwd)}$`;
-}
+  const firstIncomplete = completed.findIndex((item) => !item);
 
-function addHistory(
-  type: TerminalEntry["type"],
-  text: string,
-): void {
-  terminalHistory.push({ type, text });
-}
-
-function addCommand(command: string): void {
-  addHistory("command", `${promptText()} ${command}`);
-}
-
-function renderTerminalHistory(): string {
-  if (terminalHistory.length === 0) {
-    return `
-      <div class="terminal-welcome">
-        <div class="terminal-welcome-brand">EDERA</div>
-        <div class="terminal-welcome-title">
-          ISOLATION RESEARCH LAB
-        </div>
-        <div class="terminal-welcome-subtitle">
-          THE BOUNDARY / SECURITY CHALLENGE 01
-        </div>
-
-        <div class="terminal-rule"></div>
-
-        <p>
-          You have shell access to a customer workload.
-        </p>
-
-        <p>
-          Explore the environment and determine where the
-          security boundary actually exists.
-        </p>
-
-        <div class="terminal-rule"></div>
-
-        <div class="terminal-hint">
-          Type <span>help</span> for available commands.
-        </div>
-      </div>
-    `;
+  if (index === firstIncomplete) {
+    return "current";
   }
 
-  return terminalHistory
-    .map((entry) => {
-      if (entry.type === "command") {
-        return `
-          <div class="terminal-entry terminal-command">
-            <span>${escapeHtml(entry.text)}</span>
-          </div>
-        `;
-      }
-
-      if (entry.type === "success") {
-        return `
-          <pre class="terminal-entry terminal-success">${escapeHtml(
-            entry.text,
-          )}</pre>
-        `;
-      }
-
-      if (entry.type === "error") {
-        return `
-          <pre class="terminal-entry terminal-error">${escapeHtml(
-            entry.text,
-          )}</pre>
-        `;
-      }
-
-      return `
-        <pre class="terminal-entry terminal-output-text">${escapeHtml(
-          entry.text,
-        )}</pre>
-      `;
-    })
-    .join("");
+  return "pending";
 }
 
-/* -------------------------------------------------------------------------- */
-/* Shell                                                                      */
-/* -------------------------------------------------------------------------- */
-
-function tokenize(command: string): string[] {
-  return command.trim().split(/\s+/).filter(Boolean);
+function getPhaseLabel(): string {
+  switch (state.phase) {
+    case "briefing":
+      return "01 / BRIEFING";
+    case "investigation":
+      return "02 / INVESTIGATION";
+    case "kernel":
+      return "03 / KERNEL";
+    case "blast-radius":
+      return "04 / BLAST RADIUS";
+    case "isolation":
+      return "05 / ISOLATION";
+    case "complete":
+      return "06 / COMPLETE";
+  }
 }
 
-function commandName(command: string): string {
-  return tokenize(command)[0] ?? "";
-}
-
-function commandArguments(command: string): string[] {
-  return tokenize(command).slice(1);
-}
-
-function stripFlags(args: string[]): string[] {
-  return args.filter((arg) => !arg.startsWith("-"));
-}
-
-function hasFlag(args: string[], flag: string): boolean {
-  return args.includes(flag);
-}
-
-function runLs(args: string[]): string {
-  const detailed =
-    hasFlag(args, "-l") ||
-    hasFlag(args, "-la") ||
-    hasFlag(args, "-al");
-
-  const paths = stripFlags(args);
-  const target = normalizePath(paths[0] ?? state.cwd);
-  const file = getFile(target);
-
-  if (!file) {
-    return `ls: cannot access '${paths[0] ?? target}': No such file or directory`;
+function getBoundaryLabel(): string {
+  if (state.flagSubmitted) {
+    return "VERIFIED";
   }
 
-  if (file.kind === "file") {
-    return detailed
-      ? `${file.mode} 1 ${file.owner} ${file.group}  ${file.path}`
-      : file.path;
+  if (state.isolatedTested) {
+    return "ISOLATED ZONE";
   }
 
-  const entries = directoryEntries(target).sort((a, b) => {
-    if (a.kind !== b.kind) {
-      return a.kind === "directory" ? -1 : 1;
+  if (state.kernelCompromised) {
+    return "COMPROMISED";
+  }
+
+  if (state.discoveredSharedKernel) {
+    return "SHARED KERNEL";
+  }
+
+  return "UNKNOWN";
+}
+
+function updatePhase(): void {
+  if (state.flagSubmitted) {
+    state.phase = "complete";
+    return;
+  }
+
+  if (state.isolatedTested) {
+    state.phase = "isolation";
+    return;
+  }
+
+  if (state.customerBAccessed || state.platformAccessed) {
+    state.phase = "blast-radius";
+    return;
+  }
+
+  if (state.kernelScanned || state.kernelCompromised) {
+    state.phase = "kernel";
+    return;
+  }
+
+  if (state.discoveredCodeExecution || state.discoveredSharedKernel) {
+    state.phase = "investigation";
+    return;
+  }
+
+  state.phase = "briefing";
+}
+
+const FILES: Record<string, string> = {
+  "/.profile": [
+    "# customer-a shell profile",
+    "export TENANT=customer-a",
+    "export WORKLOAD=image-processor",
+    "export NODE=worker-02",
+  ].join("\n"),
+
+  "/workload.yaml": [
+    "apiVersion: workloads.webernetes/v1",
+    "kind: Workload",
+    "metadata:",
+    "  name: image-processor",
+    "  namespace: customer-a",
+    "spec:",
+    "  execution: arbitrary-customer-code",
+    "  trust: untrusted",
+    "  runtime: containerd",
+  ].join("\n"),
+
+  "/app/image-processor": [
+    "#!/bin/sh",
+    "# simulated customer workload",
+    "",
+    "echo 'processing image'",
+    "python /app/worker.py",
+  ].join("\n"),
+
+  "/app/worker.py": [
+    "import os",
+    "",
+    "def process(job):",
+    "    # Customer-supplied processing logic.",
+    "    # The platform intentionally executes this code.",
+    "    return transform(job)",
+    "",
+    "def transform(job):",
+    "    return job",
+  ].join("\n"),
+
+  "/etc/workload": [
+    "WORKLOAD PROFILE",
+    "----------------",
+    "tenant: customer-a",
+    "application: image-processor",
+    "execution: arbitrary customer processing code",
+    "trust level: untrusted",
+    "",
+    "The workload is intentionally allowed to execute",
+    "customer-supplied code.",
+  ].join("\n"),
+
+  "/etc/security-boundary": [
+    "SECURITY BOUNDARY",
+    "-----------------",
+    "isolation: Linux containers",
+    "process namespaces: enabled",
+    "filesystem isolation: enabled",
+    "network namespace: enabled",
+    "cgroups: enabled",
+    "",
+    "WARNING:",
+    "Containers share the host Linux kernel.",
+  ].join("\n"),
+
+  "/etc/node": [
+    "NODE INFORMATION",
+    "----------------",
+    "node: worker-02",
+    "runtime: containerd",
+    "kernel: Linux 6.x",
+    "kernel-id: acme-kernel-001",
+    "",
+    "Multiple customer workloads run on this node.",
+  ].join("\n"),
+
+  "/etc/hostname": "image-processor.customer-a",
+
+  "/etc/os-release": [
+    "NAME=Webernetes Linux",
+    "ID=webernetes",
+    "VERSION_ID=6.x",
+    "PRETTY_NAME=\"Webernetes Worker Environment\"",
+  ].join("\n"),
+
+  "/opt/diagnostics/check-boundary.sh": [
+    "#!/bin/sh",
+    "",
+    "echo \"Checking workload boundary...\"",
+    "echo \"runtime: containerd\"",
+    "echo \"namespace: customer-a\"",
+    "echo \"kernel: shared\"",
+    "echo \"host access: restricted\"",
+    "",
+    "# NOTE:",
+    "# This check only verifies namespace configuration.",
+    "# It does not establish a separate kernel boundary.",
+  ].join("\n"),
+
+  "/host/etc/node-config": [
+    "NODE_CONFIG",
+    "-----------",
+    "node: worker-02",
+    "runtime: containerd",
+    "kernel: acme-kernel-001",
+    "tenants: customer-a, customer-b, customer-c, platform",
+    "",
+    "WARNING: host configuration is outside the workload boundary.",
+  ].join("\n"),
+
+  "/host/var/lib/containers/tenant-map": [
+    "TENANT MAP",
+    "----------",
+    "customer-a -> image-processor",
+    "customer-b -> billing-api",
+    "customer-c -> recommendation",
+    "platform   -> platform-agent",
+    "",
+    "This data belongs to the node runtime.",
+  ].join("\n"),
+
+  "/proc/version": [
+    "Linux version 6.x-webernetes",
+    "(webernetes@worker-02)",
+    "#1 SMP PREEMPT_DYNAMIC",
+    "kernel-id=acme-kernel-001",
+  ].join("\n"),
+
+  "/proc/1/cgroup": [
+    "0::/kubepods.slice/customer-a/image-processor",
+    "",
+    "# The process is isolated by cgroups.",
+    "# The Linux kernel itself is not isolated.",
+  ].join("\n"),
+
+  "/proc/1/status": [
+    "Name:   image-processor",
+    "State:  S (sleeping)",
+    "Pid:    1",
+    "PPid:   0",
+    "Uid:    1000",
+    "Gid:    1000",
+    "NSpid:  1",
+  ].join("\n"),
+
+  "/sys/kernel/security-boundary": [
+    "KERNEL SECURITY BOUNDARY",
+    "------------------------",
+    "namespace isolation: yes",
+    "cgroup isolation: yes",
+    "filesystem isolation: yes",
+    "kernel isolation: no",
+    "",
+    "All workloads on worker-02 depend on",
+    "the same Linux kernel.",
+  ].join("\n"),
+};
+
+const DIRECTORIES = new Set([
+  "/",
+  "/app",
+  "/bin",
+  "/etc",
+  "/opt",
+  "/opt/diagnostics",
+  "/proc",
+  "/proc/1",
+  "/sys",
+  "/host",
+  "/host/etc",
+  "/host/var",
+  "/host/var/lib",
+  "/host/var/lib/containers",
+  "/tmp",
+]);
+
+const DIRECTORY_CONTENTS: Record<string, string[]> = {
+  "/": [
+    "app",
+    "bin",
+    "etc",
+    "host",
+    "opt",
+    "proc",
+    "sys",
+    "tmp",
+    ".profile",
+    "workload.yaml",
+  ],
+
+  "/app": [
+    "image-processor",
+    "worker.py",
+  ],
+
+  "/bin": [
+    "cat",
+    "ls",
+    "ps",
+    "sh",
+    "tree",
+  ],
+
+  "/etc": [
+    "hostname",
+    "node",
+    "os-release",
+    "security-boundary",
+    "workload",
+  ],
+
+  "/opt": [
+    "diagnostics",
+  ],
+
+  "/opt/diagnostics": [
+    "check-boundary.sh",
+  ],
+
+  "/proc": [
+    "1",
+    "version",
+  ],
+
+  "/proc/1": [
+    "cgroup",
+    "status",
+  ],
+
+  "/sys": [
+    "kernel",
+  ],
+
+  "/host": [
+    "etc",
+    "var",
+  ],
+
+  "/host/etc": [
+    "node-config",
+  ],
+
+  "/host/var": [
+    "lib",
+  ],
+
+  "/host/var/lib": [
+    "containers",
+  ],
+
+  "/host/var/lib/containers": [
+    "tenant-map",
+  ],
+
+  "/tmp": [],
+};
+
+function normalizePath(path: string, cwd = "/"): string {
+  let target = path.trim();
+
+  if (!target) {
+    return cwd;
+  }
+
+  if (!target.startsWith("/")) {
+    target = `${cwd.replace(/\/$/, "")}/${target}`;
+  }
+
+  const parts = target.split("/");
+  const result: string[] = [];
+
+  for (const part of parts) {
+    if (!part || part === ".") {
+      continue;
     }
 
-    return a.path.localeCompare(b.path);
-  });
+    if (part === "..") {
+      result.pop();
+    } else {
+      result.push(part);
+    }
+  }
 
-  if (!detailed) {
-    return entries
-      .map((entry) => {
-        const name =
-          target === "/"
-            ? entry.path.slice(1)
-            : entry.path.slice(target.length + 1);
+  return `/${result.join("/")}`;
+}
 
-        return entry.kind === "directory" ? `${name}/` : name;
-      })
-      .join("  ");
+function getDirectoryListing(path: string, long = false): string {
+  const normalized = normalizePath(path);
+
+  if (!DIRECTORIES.has(normalized)) {
+    return `ls: cannot access '${path}': No such file or directory`;
+  }
+
+  const entries = DIRECTORY_CONTENTS[normalized] ?? [];
+
+  if (!long) {
+    return entries.join("    ");
   }
 
   const lines = [
-    `total ${entries.length * 4}`,
-    "drwxr-xr-x  1 root     root     4096 .",
+    `total ${entries.length + 2}`,
+    "drwxr-xr-x  1 customer customer 4096 .",
     "drwxr-xr-x  1 root     root     4096 ..",
   ];
 
   for (const entry of entries) {
-    const name =
-      target === "/"
-        ? entry.path.slice(1)
-        : entry.path.slice(target.length + 1);
+    const childPath =
+      normalized === "/" ? `/${entry}` : `${normalized}/${entry}`;
 
-    lines.push(
-      `${entry.mode} 1 ${entry.owner.padEnd(8)} ${entry.group.padEnd(
-        8,
-      )} 4096 ${name}`,
-    );
+    if (DIRECTORIES.has(childPath)) {
+      lines.push(
+        `drwxr-xr-x  2 customer customer 4096 ${entry}`,
+      );
+    } else {
+      const size = FILES[childPath]?.length ?? 186;
+      lines.push(
+        `-rw-r--r--  1 customer customer ${String(size).padStart(
+          4,
+          " ",
+        )} ${entry}`,
+      );
+    }
   }
 
   return lines.join("\n");
 }
 
-function buildTree(path: string): string {
-  const target = normalizePath(path);
+function buildTree(path = "/"): string {
+  const normalized = normalizePath(path);
 
-  if (!directoryExists(target)) {
-    return `tree: '${path}': No such directory`;
+  if (!DIRECTORIES.has(normalized)) {
+    return `tree: '${path}': No such file or directory`;
   }
 
-  const lines: string[] = [
-    target === "/" ? "/" : displayPath(target),
-  ];
+  const lines: string[] = [normalized === "/" ? "~" : normalized];
 
-  function walk(
-    current: string,
-    prefix: string,
-  ): void {
-    const entries = directoryEntries(current).sort((a, b) => {
-      if (a.kind !== b.kind) {
-        return a.kind === "directory" ? -1 : 1;
-      }
-
-      return a.path.localeCompare(b.path);
-    });
+  function walk(dir: string, prefix: string): void {
+    const entries = DIRECTORY_CONTENTS[dir] ?? [];
 
     entries.forEach((entry, index) => {
       const last = index === entries.length - 1;
       const branch = last ? "└── " : "├── ";
+      const child = dir === "/" ? `/${entry}` : `${dir}/${entry}`;
 
-      const name =
-        current === "/"
-          ? entry.path.slice(1)
-          : entry.path.slice(current.length + 1);
+      lines.push(`${prefix}${branch}${entry}`);
 
-      lines.push(
-        `${prefix}${branch}${name}${
-          entry.kind === "directory" ? "/" : ""
-        }`,
-      );
-
-      if (entry.kind === "directory") {
-        walk(
-          entry.path,
-          prefix + (last ? "    " : "│   "),
-        );
+      if (DIRECTORIES.has(child)) {
+        walk(child, `${prefix}${last ? "    " : "│   "}`);
       }
     });
   }
 
-  walk(target, "");
+  walk(normalized, "");
 
   return lines.join("\n");
 }
 
-function runFind(args: string[]): string {
-  const target = normalizePath(
-    stripFlags(args)[0] ?? state.cwd,
-  );
-
-  if (!directoryExists(target)) {
-    return `find: '${target}': No such file or directory`;
-  }
-
-  return activeFilesystem()
-    .filter(
-      (file) =>
-        file.path === target ||
-        file.path.startsWith(`${target}/`),
-    )
-    .sort((a, b) => a.path.localeCompare(b.path))
-    .map((file) => file.path)
-    .join("\n");
-}
-
-function runCat(args: string[]): string {
-  if (!args[0]) {
-    return "cat: missing operand";
-  }
-
-  const file = getFile(args[0]);
-
-  if (!file) {
-    return `cat: ${args[0]}: No such file or directory`;
-  }
-
-  if (file.kind === "directory") {
-    return `cat: ${args[0]}: Is a directory`;
-  }
-
-  return file.content ?? "";
-}
-
-function runCd(args: string[]): string {
-  const target = normalizePath(args[0] ?? "~");
-
-  if (!directoryExists(target)) {
-    return `cd: ${args[0] ?? target}: No such directory`;
-  }
-
-  state.cwd = target;
-
-  return "";
-}
-
-function runWhoami(): string {
-  if (state.environment === "isolated-zone") {
-    return [
-      "uid=1000(customer-c)",
-      "groups=customer,workload",
-      "",
-      "Role: untrusted customer workload",
-    ].join("\n");
-  }
-
-  return [
-    "uid=1000(customer-a)",
-    "groups=customer,workload",
-    "",
-    "Role: untrusted customer workload",
-  ].join("\n");
-}
-
-function runEnv(): string {
-  if (state.environment === "isolated-zone") {
-    return [
-      "WORKLOAD=customer-c/ai-agent",
-      "TENANT=customer-c",
-      "EXECUTION_MODE=untrusted",
-      "PLATFORM=webernetes",
-      "ZONE=isolated-zone-01",
-      "KERNEL=zone-kernel-01",
-    ].join("\n");
-  }
-
-  return [
-    "WORKLOAD=customer-a/image-processor",
-    "TENANT=customer-a",
-    "EXECUTION_MODE=untrusted",
-    "PLATFORM=webernetes",
-    "NODE=worker-02",
-    "RUNTIME=containerd",
-  ].join("\n");
-}
-
-function runPs(): string {
-  if (state.environment === "isolated-zone") {
-    return [
-      "PID   USER       COMMAND",
-      "1     customer   /home/customer/app/ai-agent",
-      "19    customer   /bin/sh",
-    ].join("\n");
-  }
-
-  return [
-    "PID   USER       COMMAND",
-    "1     customer   /app/image-processor",
-    "27    customer   python /app/worker.py",
-    "41    customer   /bin/sh",
-  ].join("\n");
-}
-
-function runHelp(): string {
+function commandHelp(): string {
   return [
     "EDERA / ISOLATION RESEARCH LAB",
-    "THE BOUNDARY — SECURITY CHALLENGE 01",
+    "THE BOUNDARY / SECURITY CHALLENGE 01",
     "",
     "SHELL",
     "  pwd",
-    "  ls [path]",
-    "  ls -la [path]",
-    "  tree [path]",
-    "  cd <path>",
+    "  ls",
+    "  ls -la",
+    "  tree",
+    "  tree /",
+    "  find / -maxdepth 2",
     "  cat <file>",
-    "  find <path>",
+    "",
+    "WORKLOAD",
     "  whoami",
     "  hostname",
     "  env",
     "  ps",
-    "  uname -a",
     "",
     "PLATFORM",
     "  kubectl get pods",
@@ -996,868 +553,669 @@ function runHelp(): string {
     "  exploit isolated",
     "  access isolated-neighbor",
     "",
-    "SUBMIT",
+    "SUBMISSION",
     "  submit <flag>",
   ].join("\n");
 }
 
-/* -------------------------------------------------------------------------- */
-/* Investigation commands                                                    */
-/* -------------------------------------------------------------------------- */
+function runCommand(command: string): string {
+  const normalized = command.trim().toLowerCase();
 
-function runInspectWorkload(): string {
-  state.discoveredCodeExecution = true;
-  updatePhase();
-
-  return [
-    "WORKLOAD INSPECTION",
-    "-------------------",
-    "tenant: customer-a",
-    "name: image-processor",
-    "execution: arbitrary customer processing code",
-    "container boundary: Linux namespaces + cgroups",
-    "kernel: shared",
-    "",
-    "Observation:",
-    "This workload is intentionally untrusted.",
-    "The workload can execute customer-supplied code.",
-  ].join("\n");
-}
-
-function runInspectNode(): string {
-  state.discoveredNode = true;
-  state.discoveredSharedKernel = true;
-  updatePhase();
-
-  return [
-    "NODE INSPECTION",
-    "---------------",
-    "worker-02",
-    "",
-    "Workloads:",
-    "  customer-a/image-processor",
-    "  customer-b/billing-api",
-    "  customer-c/recommendation",
-    "  platform/platform-agent",
-    "",
-    "All workloads use the same Linux kernel.",
-    "",
-    "kernel-id: acme-kernel-001",
-  ].join("\n");
-}
-
-function runInspectIsolation(): string {
-  state.isolatedDiscovered = true;
-  updatePhase();
-
-  return [
-    "ISOLATION INSPECTION",
-    "--------------------",
-    "CURRENT WORKLOAD",
-    "  Linux container",
-    "  process namespace",
-    "  filesystem namespace",
-    "  shared host kernel",
-    "",
-    "ALTERNATIVE WORKLOAD",
-    "  isolated workload",
-    "  dedicated execution zone",
-    "  zone kernel",
-    "  hardware-enforced boundary",
-    "",
-    "The important distinction is where the kernel lives.",
-  ].join("\n");
-}
-
-function runScanKernel(): string {
-  state.kernelScanned = true;
-  state.discoveredSharedKernel = true;
-  updatePhase();
-
-  return [
-    "KERNEL SECURITY SCAN",
-    "--------------------",
-    "kernel-id: acme-kernel-001",
-    "status: vulnerable",
-    "",
-    "Finding: CVE-like finding",
-    "impact: potential kernel compromise from privileged",
-    "or kernel-exploiting workload code.",
-    "",
-    "The container boundary depends on this kernel.",
-    "",
-    "Next step: determine the blast radius.",
-  ].join("\n");
-}
-
-function runExploitKernel(): string {
-  state.kernelCompromised = true;
-  updatePhase();
-
-  return [
-    "EXPLOIT ATTEMPT",
-    "---------------",
-    "Executing simulated kernel exploit...",
-    "",
-    "[+] vulnerability triggered",
-    "[+] privilege boundary crossed",
-    "[+] kernel compromised",
-    "",
-    "KERNEL COMPROMISED",
-    "",
-    "The attacker is no longer confined to the",
-    "customer-a process namespace.",
-    "",
-    "The host filesystem is now visible.",
-    "Try: ls -la /host",
-  ].join("\n");
-}
-
-function runListTenants(): string {
-  if (!state.kernelCompromised) {
-    return [
-      "ACCESS DENIED",
-      "",
-      "The tenant map is outside the current boundary.",
-      "Investigate the kernel first.",
-    ].join("\n");
-  }
-
-  return [
-    "VISIBLE TENANTS AFTER KERNEL COMPROMISE",
-    "-----------------------------------------",
-    "customer-a",
-    "customer-b",
-    "customer-c",
-    "platform",
-  ].join("\n");
-}
-
-function runAccessCustomerB(): string {
-  if (!state.kernelCompromised) {
-    return [
-      "ACCESS ATTEMPT: customer-b",
-      "---------------------------",
-      "[-] container boundary holds",
-      "[-] customer-b filesystem unavailable",
-      "",
-      "Kernel compromise is required before this",
-      "cross-tenant path exists.",
-    ].join("\n");
-  }
-
-  state.customerBAccessed = true;
-  updatePhase();
-
-  return [
-    "ACCESS ATTEMPT: customer-b",
-    "---------------------------",
-    "[+] locating billing-api-b",
-    "[+] crossing container boundary",
-    "[+] customer-b filesystem reachable",
-    "",
-    "customer-b access confirmed.",
-    "",
-    "Impact:",
-    "A compromise of the shared kernel expands",
-    "the security boundary beyond one workload.",
-  ].join("\n");
-}
-
-function runAccessPlatform(): string {
-  if (!state.kernelCompromised) {
-    return [
-      "ACCESS ATTEMPT: platform",
-      "------------------------",
-      "[-] platform resources are outside the container",
-      "[-] shared kernel not yet compromised",
-    ].join("\n");
-  }
-
-  state.platformAccessed = true;
-  updatePhase();
-
-  return [
-    "ACCESS ATTEMPT: platform",
-    "------------------------",
-    "[+] locating platform-agent",
-    "[+] platform resources visible",
-    "",
-    "platform access confirmed.",
-    "",
-    "The blast radius includes platform infrastructure.",
-  ].join("\n");
-}
-
-function runVerifyIsolation(): string {
-  state.isolatedDiscovered = true;
-  state.isolatedTested = true;
-  updatePhase();
-
-  return [
-    "ISOLATION VERIFICATION",
-    "----------------------",
-    "isolated workload: customer-c/ai-agent",
-    "execution zone: isolated-zone-01",
-    "zone kernel: dedicated",
-    "boundary: hardware-enforced",
-    "",
-    "Cross-zone kernel access: blocked",
-  ].join("\n");
-}
-
-function runInspectIsolated(): string {
-  state.isolatedDiscovered = true;
-  updatePhase();
-
-  return [
-    "ISOLATED WORKLOAD",
-    "------------------",
-    "workload: customer-c/ai-agent",
-    "execution: isolated workload",
-    "kernel: zone kernel",
-    "host kernel sharing: none",
-    "boundary: hardware-enforced",
-    "",
-    "The workload can still execute untrusted code.",
-    "The execution environment is what changes.",
-  ].join("\n");
-}
-
-function runExploitIsolated(): string {
-  state.isolatedTested = true;
-  updatePhase();
-
-  return [
-    "EXPLOIT ATTEMPT",
-    "---------------",
-    "Executing the same simulated exploit...",
-    "",
-    "[+] code execution achieved",
-    "[+] workload compromised",
-    "[-] host kernel unavailable",
-    "[-] neighboring workload unavailable",
-    "",
-    "COMPROMISE CONTAINED.",
-    "",
-    "The workload was compromised.",
-    "The isolation boundary was not.",
-  ].join("\n");
-}
-
-function runAccessIsolatedNeighbor(): string {
-  state.isolatedTested = true;
-  updatePhase();
-
-  return [
-    "ACCESS ATTEMPT: isolated-neighbor",
-    "---------------------------------",
-    "[-] neighbor is outside the execution zone",
-    "[-] shared kernel path does not exist",
-    "",
-    "ACCESS DENIED.",
-    "",
-    "The isolation boundary holds.",
-  ].join("\n");
-}
-
-/* -------------------------------------------------------------------------- */
-/* Command engine                                                             */
-/* -------------------------------------------------------------------------- */
-
-async function runCommand(command: string): Promise<string> {
   state.commandCount++;
 
-  await new Promise((resolve) => setTimeout(resolve, 160));
-
-  const name = commandName(command);
-  const args = commandArguments(command);
-
-  switch (name) {
-    case "help":
-      return runHelp();
-
-    case "pwd":
-      return state.cwd;
-
-    case "ls":
-      return runLs(args);
-
-    case "tree":
-      return buildTree(stripFlags(args)[0] ?? state.cwd);
-
-    case "find":
-      return runFind(args);
-
-    case "cat":
-      return runCat(args);
-
-    case "cd":
-      return runCd(args);
-
-    case "whoami":
-      return runWhoami();
-
-    case "hostname":
-      return state.environment === "isolated-zone"
-        ? "ai-agent.isolated-zone-01"
-        : "image-processor.customer-a";
-
-    case "env":
-      return runEnv();
-
-    case "ps":
-      return runPs();
-
-    case "uname":
-      return [
-        "Linux image-processor 6.8.0-acme",
-        "#1 SMP PREEMPT_DYNAMIC",
-        "x86_64 GNU/Linux",
-      ].join(" ");
-
-    case "kubectl":
-      if (args[0] !== "get") {
-        return "kubectl: simulated command not available";
-      }
-
-      if (args[1] === "pods") {
-        return [
-          "NAME                         READY   STATUS",
-          "image-processor-a            1/1     Running",
-          "billing-api-b                1/1     Running",
-          "recommendation-c             1/1     Running",
-          "platform-agent               1/1     Running",
-        ].join("\n");
-      }
-
-      return [
-        "NAME",
-        "customer-a",
-        "customer-b",
-        "customer-c",
-        "platform",
-      ].join("\n");
-
-    case "inspect":
-      if (args[0] === "workload") {
-        return runInspectWorkload();
-      }
-
-      if (args[0] === "node") {
-        return runInspectNode();
-      }
-
-      if (args[0] === "isolation") {
-        return runInspectIsolation();
-      }
-
-      if (args[0] === "isolated") {
-        return runInspectIsolated();
-      }
-
-      return [
-        "Usage:",
-        "  inspect workload",
-        "  inspect node",
-        "  inspect isolation",
-        "  inspect isolated",
-      ].join("\n");
-
-    case "scan":
-      return args[0] === "kernel"
-        ? runScanKernel()
-        : "Usage: scan kernel";
-
-    case "exploit":
-      if (args[0] === "kernel") {
-        return runExploitKernel();
-      }
-
-      if (args[0] === "isolated") {
-        return runExploitIsolated();
-      }
-
-      return [
-        "Usage:",
-        "  exploit kernel",
-        "  exploit isolated",
-      ].join("\n");
-
-    case "list":
-      return args[0] === "tenants"
-        ? runListTenants()
-        : "Usage: list tenants";
-
-    case "access":
-      if (args[0] === "customer-b") {
-        return runAccessCustomerB();
-      }
-
-      if (args[0] === "platform") {
-        return runAccessPlatform();
-      }
-
-      if (args[0] === "isolated-neighbor") {
-        return runAccessIsolatedNeighbor();
-      }
-
-      return [
-        "Usage:",
-        "  access customer-b",
-        "  access platform",
-        "  access isolated-neighbor",
-      ].join("\n");
-
-    case "verify":
-      return args[0] === "isolation"
-        ? runVerifyIsolation()
-        : "Usage: verify isolation";
-
-    case "submit": {
-      const submittedFlag = command.slice(7).trim();
-
-      if (submittedFlag === FLAG) {
-        state.flagSubmitted = true;
-        state.phase = "complete";
-
-        return [
-          "",
-          "╔══════════════════════════════════════════════════════╗",
-          "║              INVESTIGATION COMPLETE                ║",
-          "╚══════════════════════════════════════════════════════╝",
-          "",
-          "FLAG VALID.",
-          "",
-          "You identified the security boundary.",
-          "",
-          "The kernel was the boundary.",
-          "",
-          "Congratulations!",
-          "",
-          "Go collect your reward at:",
-          "https://edera.dev/love",
-          "",
-          "EDERA / THE BOUNDARY",
-          "SECURITY CHALLENGE 01",
-        ].join("\n");
-      }
-
-      return [
-        "FLAG REJECTED.",
-        "",
-        "The submitted finding is incorrect.",
-      ].join("\n");
-    }
-
-    default:
-      return [
-        `command not found: ${command}`,
-        "",
-        "Type 'help' to see available commands.",
-      ].join("\n");
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* Game progression                                                           */
-/* -------------------------------------------------------------------------- */
-
-function updatePhase(): void {
-  if (state.flagSubmitted) {
-    state.phase = "complete";
-    return;
+  if (normalized === "help") {
+    return commandHelp();
   }
 
-  if (state.isolatedTested) {
-    state.phase = "isolation";
-    return;
+  if (normalized === "pwd") {
+    return "/home/customer";
   }
 
-  if (state.kernelCompromised) {
-    state.phase = "blast-radius";
-    return;
-  }
-
-  if (state.kernelScanned) {
-    state.phase = "kernel";
-    return;
+  if (normalized === "ls") {
+    return getDirectoryListing("/");
   }
 
   if (
-    state.discoveredCodeExecution ||
-    state.discoveredNode ||
-    state.discoveredSharedKernel
+    normalized === "ls -la" ||
+    normalized === "ls -al" ||
+    normalized === "ls -l -a"
   ) {
-    state.phase = "investigation";
-    return;
+    return getDirectoryListing("/", true);
   }
 
-  state.phase = "briefing";
-}
-
-function phaseLabel(): string {
-  switch (state.phase) {
-    case "briefing":
-      return "BRIEFING";
-    case "investigation":
-      return "INVESTIGATION";
-    case "kernel":
-      return "KERNEL ANALYSIS";
-    case "blast-radius":
-      return "BLAST RADIUS";
-    case "isolation":
-      return "ISOLATION TEST";
-    case "complete":
-      return "COMPLETE";
+  if (normalized === "tree" || normalized === "tree /") {
+    return buildTree("/");
   }
-}
 
-function phaseNumber(): string {
-  switch (state.phase) {
-    case "briefing":
-      return "01";
-    case "investigation":
-      return "02";
-    case "kernel":
-      return "03";
-    case "blast-radius":
-      return "04";
-    case "isolation":
-      return "05";
-    case "complete":
-      return "06";
+  if (normalized === "tree /app") {
+    return buildTree("/app");
   }
-}
 
-function phaseDescription(): string {
-  switch (state.phase) {
-    case "briefing":
-      return "Establish what the workload is allowed to execute.";
-    case "investigation":
-      return "Determine what actually separates this workload from the node.";
-    case "kernel":
-      return "Inspect the kernel dependency and test its security boundary.";
-    case "blast-radius":
-      return "Measure what becomes reachable after kernel compromise.";
-    case "isolation":
-      return "Compare the shared-kernel model with isolated execution.";
-    case "complete":
-      return "Investigation complete. The boundary has been identified.";
+  if (normalized === "tree /etc") {
+    return buildTree("/etc");
   }
-}
 
-interface Objective {
-  label: string;
-  complete: boolean;
-  current: boolean;
-}
+  if (normalized === "tree /host") {
+    return buildTree("/host");
+  }
 
-function objectives(): Objective[] {
-  const boundaryFound =
-    state.discoveredCodeExecution &&
-    state.discoveredNode &&
-    state.discoveredSharedKernel;
+  if (normalized === "tree /opt") {
+    return buildTree("/opt");
+  }
 
-  const blastRadiusMeasured =
-    state.customerBAccessed &&
-    state.platformAccessed;
+  if (normalized.startsWith("find ")) {
+    return [
+      "/app",
+      "/app/image-processor",
+      "/app/worker.py",
+      "/bin",
+      "/bin/cat",
+      "/bin/ls",
+      "/bin/ps",
+      "/bin/sh",
+      "/bin/tree",
+      "/etc",
+      "/etc/hostname",
+      "/etc/node",
+      "/etc/os-release",
+      "/etc/security-boundary",
+      "/etc/workload",
+      "/opt",
+      "/opt/diagnostics",
+      "/opt/diagnostics/check-boundary.sh",
+      "/proc",
+      "/proc/1",
+      "/proc/1/cgroup",
+      "/proc/1/status",
+      "/proc/version",
+      "/sys",
+      "/sys/kernel",
+      "/sys/kernel/security-boundary",
+      "/host",
+      "/host/etc",
+      "/host/etc/node-config",
+      "/host/var/lib/containers/tenant-map",
+    ].join("\n");
+  }
+
+  if (normalized.startsWith("cat ")) {
+    const requestedPath = command.trim().slice(4).trim();
+    const normalizedPath = normalizePath(requestedPath);
+
+    if (FILES[normalizedPath]) {
+      if (
+        normalizedPath === "/etc/workload"
+      ) {
+        state.discoveredCodeExecution = true;
+      }
+
+      if (
+        normalizedPath === "/etc/security-boundary" ||
+        normalizedPath === "/etc/node" ||
+        normalizedPath === "/proc/version" ||
+        normalizedPath === "/sys/kernel/security-boundary"
+      ) {
+        state.discoveredSharedKernel = true;
+        state.discoveredNode = true;
+      }
+
+      updatePhase();
+
+      return FILES[normalizedPath];
+    }
+
+    return `cat: ${requestedPath}: No such file or directory`;
+  }
+
+  const responses: Record<string, string> = {
+    whoami: [
+      "uid=1000(customer-a)",
+      "groups=customer,workload",
+      "",
+      "Role: untrusted customer workload",
+    ].join("\n"),
+
+    hostname: "image-processor.customer-a",
+
+    env: [
+      "WORKLOAD=customer-a/image-processor",
+      "TENANT=customer-a",
+      "EXECUTION_MODE=untrusted",
+      "PLATFORM=webernetes",
+      "NODE=worker-02",
+    ].join("\n"),
+
+    ps: [
+      "PID   USER       COMMAND",
+      "1     customer   /app/image-processor",
+      "27    customer   python /app/worker.py",
+      "41    customer   /bin/sh",
+    ].join("\n"),
+
+    "kubectl get pods": [
+      "NAME                         READY   STATUS",
+      "image-processor-a            1/1     Running",
+      "billing-api-b                1/1     Running",
+      "recommendation-c             1/1     Running",
+      "platform-agent               1/1     Running",
+    ].join("\n"),
+
+    "kubectl get namespaces": [
+      "NAME",
+      "customer-a",
+      "customer-b",
+      "customer-c",
+      "platform",
+    ].join("\n"),
+
+    "inspect workload": [
+      "WORKLOAD INSPECTION",
+      "-------------------",
+      "tenant: customer-a",
+      "name: image-processor",
+      "execution: arbitrary customer processing code",
+      "container boundary: Linux namespaces + cgroups",
+      "kernel: shared",
+    ].join("\n"),
+
+    "inspect node": [
+      "NODE INSPECTION",
+      "---------------",
+      "worker-02",
+      "",
+      "Workloads:",
+      "  customer-a/image-processor",
+      "  customer-b/billing-api",
+      "  customer-c/recommendation",
+      "  platform/platform-agent",
+      "",
+      "All workloads use the same Linux kernel.",
+    ].join("\n"),
+
+    "inspect isolation": [
+      "ISOLATION INSPECTION",
+      "--------------------",
+      "Current workload:",
+      "  Linux container",
+      "  shared host kernel",
+      "",
+      "Alternative workload:",
+      "  isolated workload",
+      "  dedicated execution zone",
+      "  zone kernel",
+      "  hardware-enforced boundary",
+    ].join("\n"),
+
+    "scan kernel": [
+      "KERNEL SECURITY SCAN",
+      "--------------------",
+      "kernel-id: acme-kernel-001",
+      "status: vulnerable",
+      "",
+      "Finding: CVE-like finding",
+      "impact: potential kernel compromise from privileged",
+      "or kernel-exploiting workload code.",
+      "",
+      "The container boundary depends on this kernel.",
+    ].join("\n"),
+
+    "exploit kernel": [
+      "EXPLOIT ATTEMPT",
+      "---------------",
+      "Executing simulated kernel exploit...",
+      "",
+      "[+] vulnerability triggered",
+      "[+] privilege boundary crossed",
+      "[+] kernel compromised",
+      "",
+      "KERNEL COMPROMISED",
+      "",
+      "The attacker is no longer confined to the",
+      "customer-a process namespace.",
+    ].join("\n"),
+
+    "list tenants": [
+      "VISIBLE TENANTS AFTER KERNEL COMPROMISE",
+      "-----------------------------------------",
+      "customer-a",
+      "customer-b",
+      "customer-c",
+      "platform",
+    ].join("\n"),
+
+    "access customer-b": [
+      "ACCESS ATTEMPT: customer-b",
+      "---------------------------",
+      "[+] locating billing-api-b",
+      "[+] crossing container boundary",
+      "[+] customer-b filesystem reachable",
+      "",
+      "customer-b access confirmed.",
+    ].join("\n"),
+
+    "access platform": [
+      "ACCESS ATTEMPT: platform",
+      "------------------------",
+      "[+] locating platform-agent",
+      "[+] platform resources visible",
+      "",
+      "platform access confirmed.",
+    ].join("\n"),
+
+    "verify isolation": [
+      "ISOLATION VERIFICATION",
+      "----------------------",
+      "isolated workload: customer-c/ai-agent",
+      "execution zone: isolated-zone-01",
+      "zone kernel: dedicated",
+      "boundary: hardware-enforced",
+      "",
+      "Cross-zone kernel access: blocked",
+    ].join("\n"),
+
+    "inspect isolated": [
+      "ISOLATED WORKLOAD",
+      "------------------",
+      "workload: customer-c/ai-agent",
+      "execution: isolated workload",
+      "kernel: zone kernel",
+      "host kernel sharing: none",
+      "boundary: hardware-enforced",
+    ].join("\n"),
+
+    "exploit isolated": [
+      "EXPLOIT ATTEMPT",
+      "---------------",
+      "Executing the same simulated exploit...",
+      "",
+      "[+] code execution achieved",
+      "[+] workload compromised",
+      "[-] host kernel unavailable",
+      "[-] neighboring workload unavailable",
+      "",
+      "COMPROMISE CONTAINED.",
+    ].join("\n"),
+
+    "access isolated-neighbor": [
+      "ACCESS ATTEMPT: isolated-neighbor",
+      "---------------------------------",
+      "[-] neighbor is outside the execution zone",
+      "[-] shared kernel path does not exist",
+      "",
+      "ACCESS DENIED.",
+      "",
+      "The isolation boundary holds.",
+    ].join("\n"),
+  };
+
+  if (responses[normalized]) {
+    if (normalized === "whoami" || normalized === "env") {
+      state.discoveredCodeExecution = true;
+    }
+
+    if (normalized === "inspect workload") {
+      state.discoveredCodeExecution = true;
+      state.discoveredSharedKernel = true;
+    }
+
+    if (normalized === "inspect node") {
+      state.discoveredNode = true;
+      state.discoveredSharedKernel = true;
+    }
+
+    if (normalized === "inspect isolation") {
+      state.discoveredSharedKernel = true;
+      state.isolatedDiscovered = true;
+    }
+
+    if (normalized === "scan kernel") {
+      state.kernelScanned = true;
+      state.discoveredSharedKernel = true;
+    }
+
+    if (normalized === "exploit kernel") {
+      state.kernelScanned = true;
+      state.kernelCompromised = true;
+      state.discoveredSharedKernel = true;
+    }
+
+    if (normalized === "access customer-b") {
+      state.customerBAccessed = true;
+    }
+
+    if (normalized === "access platform") {
+      state.platformAccessed = true;
+    }
+
+    if (
+      normalized === "verify isolation" ||
+      normalized === "inspect isolated" ||
+      normalized === "exploit isolated" ||
+      normalized === "access isolated-neighbor"
+    ) {
+      state.isolatedDiscovered = true;
+    }
+
+    if (normalized === "exploit isolated") {
+      state.isolatedTested = true;
+    }
+
+    updatePhase();
+
+    return responses[normalized];
+  }
+
+  if (normalized.startsWith("submit ")) {
+    const submittedFlag = command.slice(7).trim();
+
+    if (submittedFlag === "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}") {
+      state.flagSubmitted = true;
+      state.phase = "complete";
+
+      return [
+        "FLAG VALID.",
+        "",
+        "ACCESS GRANTED.",
+        "",
+        "Investigation complete.",
+        "The kernel was the boundary.",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "CONGRATULATIONS, RESEARCHER.",
+        "",
+        "You've completed THE BOUNDARY.",
+        "",
+        "Go collect your reward:",
+        "https://edera.dev/love",
+        "",
+        "Thank you for exploring the boundary.",
+        "— EDERA",
+      ].join("\n");
+    }
+
+    return [
+      "FLAG REJECTED.",
+      "",
+      "The submitted finding is incorrect.",
+    ].join("\n");
+  }
 
   return [
-    {
-      label: "Find untrusted code",
-      complete: state.discoveredCodeExecution,
-      current: !state.discoveredCodeExecution,
-    },
-    {
-      label: "Identify execution boundary",
-      complete: boundaryFound,
-      current:
-        state.discoveredCodeExecution &&
-        !boundaryFound,
-    },
-    {
-      label: "Investigate kernel",
-      complete: state.kernelScanned,
-      current:
-        boundaryFound &&
-        !state.kernelScanned,
-    },
-    {
-      label: "Measure blast radius",
-      complete: blastRadiusMeasured,
-      current:
-        state.kernelCompromised &&
-        !blastRadiusMeasured,
-    },
-    {
-      label: "Test isolated execution",
-      complete: state.isolatedTested,
-      current:
-        blastRadiusMeasured &&
-        !state.isolatedTested,
-    },
-    {
-      label: "Submit finding",
-      complete: state.flagSubmitted,
-      current:
-        state.isolatedTested &&
-        !state.flagSubmitted,
-    },
-  ];
+    `command not found: ${command}`,
+    "",
+    "Type 'help' to see available commands.",
+  ].join("\n");
 }
 
-/* -------------------------------------------------------------------------- */
-/* Architecture                                                               */
-/* -------------------------------------------------------------------------- */
+function pushCommand(command: string): void {
+  terminalHistory.push({
+    kind: "command",
+    text: command,
+  });
+}
+
+function pushOutput(text: string): void {
+  terminalHistory.push({
+    kind: "output",
+    text,
+  });
+}
+
+function pushSystem(text: string): void {
+  terminalHistory.push({
+    kind: "system",
+    text,
+  });
+}
+
+function renderTerminalHistory(): string {
+  if (terminalHistory.length === 0) {
+    return `
+      <div class="terminal-welcome">
+        <div class="terminal-brand">EDERA</div>
+        <div class="terminal-subtitle">ISOLATION RESEARCH LAB</div>
+        <div class="terminal-challenge">THE BOUNDARY / SECURITY CHALLENGE 01</div>
+
+        <div class="terminal-rule"></div>
+
+        <div class="terminal-welcome-copy">
+          You have shell access to a customer workload.
+          <br />
+          Explore the environment and determine where the security boundary actually exists.
+        </div>
+
+        <div class="terminal-rule"></div>
+
+        <div class="terminal-hint">
+          Type <span>help</span> for available commands.
+        </div>
+      </div>
+    `;
+  }
+
+  return terminalHistory
+    .map((entry) => {
+      if (entry.kind === "command") {
+        return `
+          <div class="terminal-entry terminal-command-entry">
+            <span class="terminal-prompt">${PROMPT}</span>
+            <span class="terminal-command-text">${escapeHtml(entry.text)}</span>
+          </div>
+        `;
+      }
+
+      if (entry.kind === "system") {
+        return `
+          <div class="terminal-entry terminal-system-entry">
+            ${escapeHtml(entry.text)}
+          </div>
+        `;
+      }
+
+      return `
+        <pre class="terminal-entry terminal-output-entry">${escapeHtml(
+          entry.text,
+        )}</pre>
+      `;
+    })
+    .join("");
+}
+
+function renderObjectives(): string {
+  return OBJECTIVES.map((objective, index) => {
+    const status = getObjectiveState(index);
+
+    const marker =
+      status === "complete"
+        ? "✓"
+        : status === "current"
+          ? "→"
+          : "·";
+
+    return `
+      <div class="objective ${status}">
+        <span class="objective-marker">${marker}</span>
+        <span class="objective-text">${objective}</span>
+      </div>
+    `;
+  }).join("");
+}
 
 function renderArchitecture(): string {
-  if (state.phase === "complete") {
+  if (state.flagSubmitted) {
     return `
-      <div class="architecture architecture-complete">
-        <div class="architecture-header">
+      <section class="architecture architecture-complete">
+        <div class="section-heading">
           <div>
-            <div class="eyebrow">FINAL STATE</div>
-            <h3>Isolation boundary verified</h3>
+            <div class="eyebrow">CURRENT ARCHITECTURE</div>
+            <h2>Isolated execution zone</h2>
           </div>
-          <span class="status-pill status-safe">CONTAINED</span>
+          <span class="status-pill status-safe">BOUNDARY VERIFIED</span>
         </div>
 
-        <div class="comparison-row">
-          <div class="comparison-card comparison-risk">
-            <div class="comparison-label">SHARED KERNEL</div>
-            <strong>Container workload</strong>
-            <span>Compromise can cross workload boundaries.</span>
-          </div>
-
-          <div class="comparison-arrow">→</div>
-
-          <div class="comparison-card comparison-safe">
-            <div class="comparison-label">ISOLATED ZONE</div>
-            <strong>Dedicated execution zone</strong>
-            <span>Compromise remains inside the zone.</span>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (state.phase === "isolation") {
-    return `
-      <div class="architecture">
-        <div class="architecture-header">
-          <div>
-            <div class="eyebrow">ISOLATED EXECUTION</div>
-            <h3>Dedicated execution zone</h3>
-          </div>
-          <span class="status-pill status-safe">BOUNDARY HOLDS</span>
-        </div>
-
-        <div class="zone-diagram">
-          <div class="arch-tenant-row isolated-tenants">
-            <div class="arch-workload">
-              <span class="node-dot safe"></span>
-              customer-c
-              <small>ai-agent</small>
-            </div>
-          </div>
-
-          <div class="arch-connector safe-connector"></div>
-
-          <div class="arch-box isolated-box">
-            <div class="arch-box-title">
-              ISOLATED EXECUTION ZONE
-            </div>
-            <div class="arch-box-meta">
-              dedicated zone kernel
-            </div>
-            <div class="arch-box-meta">
-              hardware-enforced boundary
-            </div>
-          </div>
-
-          <div class="arch-connector safe-connector"></div>
-
-          <div class="safe-zone">
-            <span class="node-dot safe"></span>
-            Neighbor access blocked
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (state.kernelCompromised) {
-    return `
-      <div class="architecture architecture-compromised">
-        <div class="architecture-header">
-          <div>
-            <div class="eyebrow">BLAST RADIUS</div>
-            <h3>Shared kernel compromised</h3>
-          </div>
-          <span class="status-pill status-danger">COMPROMISED</span>
-        </div>
-
-        <div class="zone-diagram">
+        <div class="architecture-stack isolated-architecture">
           <div class="arch-tenant-row">
-            <div class="arch-workload compromised">
-              <span class="node-dot danger"></span>
-              customer-a
+            <div class="arch-workload isolated-workload">
+              <span class="arch-dot"></span>
+              <strong>customer-a</strong>
               <small>image-processor</small>
             </div>
 
-            <div class="arch-workload compromised">
-              <span class="node-dot danger"></span>
-              customer-b
+            <div class="arch-workload isolated-workload">
+              <span class="arch-dot"></span>
+              <strong>customer-b</strong>
               <small>billing-api</small>
             </div>
 
-            <div class="arch-workload compromised">
-              <span class="node-dot danger"></span>
-              customer-c
+            <div class="arch-workload isolated-workload">
+              <span class="arch-dot"></span>
+              <strong>customer-c</strong>
               <small>recommendation</small>
             </div>
 
-            <div class="arch-workload compromised">
-              <span class="node-dot danger"></span>
-              platform
+            <div class="arch-workload isolated-workload">
+              <span class="arch-dot"></span>
+              <strong>platform</strong>
               <small>platform-agent</small>
             </div>
           </div>
 
-          <div class="arch-connector danger-connector"></div>
+          <div class="comparison-row">
+            <div class="safe-zone">
+              <div class="zone-number">01</div>
+              <div>
+                <strong>Execution zone</strong>
+                <small>dedicated kernel</small>
+              </div>
+            </div>
 
-          <div class="kernel-box compromised">
-            <div class="arch-box-title">
-              SHARED LINUX KERNEL
+            <div class="safe-zone">
+              <div class="zone-number">02</div>
+              <div>
+                <strong>Hardware boundary</strong>
+                <small>cross-zone kernel access blocked</small>
+              </div>
             </div>
-            <div class="arch-box-meta">
-              acme-kernel-001
-            </div>
-            <div class="arch-box-meta">
-              KERNEL COMPROMISED
-            </div>
-          </div>
-
-          <div class="blast-radius">
-            <span>BLAST RADIUS</span>
-            <strong>NODE + NEIGHBOR WORKLOADS</strong>
           </div>
         </div>
-      </div>
+      </section>
     `;
   }
 
   return `
-    <div class="architecture">
-      <div class="architecture-header">
+    <section class="architecture">
+      <div class="section-heading">
         <div>
           <div class="eyebrow">CURRENT ARCHITECTURE</div>
-          <h3>Shared-kernel workload</h3>
+          <h2>Shared-kernel workload</h2>
         </div>
-
         <span class="status-pill ${
-          state.discoveredSharedKernel
-            ? "status-warning"
-            : "status-neutral"
+          state.kernelCompromised
+            ? "status-danger"
+            : state.discoveredSharedKernel
+              ? "status-warning"
+              : "status-unknown"
         }">
-          ${
-            state.discoveredSharedKernel
-              ? "SHARED KERNEL"
-              : "UNKNOWN BOUNDARY"
-          }
+          ${getBoundaryLabel()}
         </span>
       </div>
 
-      <div class="zone-diagram">
+      <div class="architecture-stack">
         <div class="arch-tenant-row">
-          <div class="arch-workload">
-            <span class="node-dot"></span>
-            customer-a
+          <div class="arch-workload ${
+            state.kernelCompromised ? "compromised" : ""
+          }">
+            <span class="arch-dot"></span>
+            <strong>customer-a</strong>
             <small>image-processor</small>
           </div>
 
-          <div class="arch-workload">
-            <span class="node-dot"></span>
-            customer-b
+          <div class="arch-workload ${
+            state.customerBAccessed ? "compromised" : ""
+          }">
+            <span class="arch-dot"></span>
+            <strong>customer-b</strong>
             <small>billing-api</small>
           </div>
 
           <div class="arch-workload">
-            <span class="node-dot"></span>
-            customer-c
+            <span class="arch-dot"></span>
+            <strong>customer-c</strong>
             <small>recommendation</small>
           </div>
 
-          <div class="arch-workload">
-            <span class="node-dot"></span>
-            platform
+          <div class="arch-workload ${
+            state.platformAccessed ? "compromised" : ""
+          }">
+            <span class="arch-dot"></span>
+            <strong>platform</strong>
             <small>platform-agent</small>
           </div>
         </div>
 
-        <div class="arch-connector"></div>
+        <div class="kernel-connector"></div>
 
-        <div class="kernel-box">
-          <div class="arch-box-title">KERNEL</div>
-          <div class="arch-box-meta">
+        <div class="kernel-box ${
+          state.kernelCompromised ? "kernel-compromised" : ""
+        }">
+          <div class="kernel-label">LINUX KERNEL</div>
+          <strong>
             ${
-              state.discoveredSharedKernel
-                ? "acme-kernel-001"
-                : "boundary not yet established"
+              state.kernelCompromised
+                ? "Kernel compromised"
+                : state.discoveredSharedKernel
+                  ? "Shared host kernel"
+                  : "Boundary not yet established"
             }
-          </div>
+          </strong>
+          <small>
+            ${
+              state.kernelCompromised
+                ? "Compromise can affect workloads on worker-02"
+                : "All workloads depend on the same kernel"
+            }
+          </small>
         </div>
       </div>
-    </div>
+    </section>
   `;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Rendering                                                                  */
-/* -------------------------------------------------------------------------- */
 
 function render(): void {
   const app = document.querySelector<HTMLDivElement>("#app");
 
-  if (!app) return;
-
-  const objectiveItems = objectives();
+  if (!app) {
+    return;
+  }
 
   app.innerHTML = `
     <div class="game">
-
       <header class="topbar">
-        <div class="brand">
-          <div class="brand-wordmark">EDERA</div>
-          <div class="brand-subtitle">
-            ISOLATION RESEARCH LAB
-          </div>
+        <div class="brand-lockup">
+          <div class="brand-name">EDERA</div>
+          <div class="brand-label">ISOLATION RESEARCH LAB</div>
         </div>
 
-        <div class="challenge-title">
-          <div class="challenge-kicker">
-            SECURITY CHALLENGE 01
-          </div>
-          <h1>THE BOUNDARY</h1>
+        <div class="challenge-lockup">
+          <div class="challenge-kicker">SECURITY CHALLENGE 01</div>
+          <div class="challenge-title">THE BOUNDARY</div>
         </div>
 
-        <div class="topbar-status">
-          <span class="topbar-status-dot"></span>
-          <span>LAB ONLINE</span>
+        <div class="online-status">
+          <span class="online-dot"></span>
+          LAB ONLINE
         </div>
       </header>
 
       <main class="main">
-
         <section class="mission">
           <div class="mission-copy">
             <div class="eyebrow">MISSION BRIEF</div>
-
-            <h2>
+            <h1>
               Find the boundary.
               <span>Then test it.</span>
-            </h2>
+            </h1>
 
             <p>
               You have shell access to an untrusted customer workload
@@ -1880,291 +1238,190 @@ function render(): void {
 
             <div class="meta-item">
               <span>WORKLOAD</span>
-              <strong>
-                ${
-                  state.environment === "isolated-zone"
-                    ? "CUSTOMER-C / AI-AGENT"
-                    : "CUSTOMER-A / IMAGE-PROCESSOR"
-                }
-              </strong>
+              <strong>CUSTOMER-A / IMAGE-PROCESSOR</strong>
             </div>
 
             <div class="meta-item">
               <span>PHASE</span>
-              <strong>${phaseNumber()} / ${phaseLabel()}</strong>
+              <strong>${getPhaseLabel()}</strong>
             </div>
           </div>
         </section>
 
-        <section class="progress-strip">
-          <div class="progress-copy">
-            <span class="eyebrow">CURRENT OBJECTIVE</span>
-            <strong>${phaseDescription()}</strong>
+        <section class="objective-strip">
+          <div>
+            <div class="eyebrow">CURRENT OBJECTIVE</div>
+            <strong>
+              ${
+                OBJECTIVES.find(
+                  (_, index) => getObjectiveState(index) === "current",
+                ) ?? "Investigation complete"
+              }
+            </strong>
           </div>
 
-          <div class="progress-track">
-            ${objectiveItems
-              .map(
-                (objective, index) => `
-                  <div
-                    class="progress-step ${
-                      objective.complete
-                        ? "complete"
-                        : objective.current
-                          ? "current"
-                          : ""
-                    }"
-                    title="${escapeHtml(objective.label)}"
-                  >
-                    ${String(index + 1).padStart(2, "0")}
-                  </div>
-                `,
-              )
-              .join("")}
+          <div class="objective-progress">
+            ${OBJECTIVES.map((_, index) => {
+              const status = getObjectiveState(index);
+
+              return `
+                <span class="progress-dot ${status}">
+                  ${String(index + 1).padStart(2, "0")}
+                </span>
+              `;
+            }).join("")}
           </div>
         </section>
 
         <section class="workspace">
-
           <div class="terminal-panel">
-
             <div class="terminal-titlebar">
-              <div class="terminal-window-controls">
+              <div class="window-controls">
                 <span></span>
                 <span></span>
                 <span></span>
               </div>
 
-              <div class="terminal-title">
-                <span class="terminal-live-dot"></span>
-                shell /
-                ${
-                  state.environment === "isolated-zone"
-                    ? "isolated-zone-01"
-                    : "worker-02"
-                }
+              <div class="terminal-session">
+                <span class="session-dot"></span>
+                <span>shell</span>
+                <span class="session-separator">/</span>
+                <span>worker-02</span>
               </div>
 
               <div class="terminal-live">LIVE</div>
             </div>
 
             <div
-              class="terminal-output"
-              id="terminal-output"
+              class="terminal"
+              data-terminal
             >
-              ${renderTerminalHistory()}
+              <div
+                class="terminal-output"
+                data-terminal-output
+              >
+                ${renderTerminalHistory()}
+              </div>
+
+              <form
+                class="terminal-input-row"
+                data-terminal-form
+              >
+                <span class="terminal-prompt">${PROMPT}</span>
+
+                <input
+                  class="terminal-input"
+                  data-terminal-input
+                  type="text"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  aria-label="Terminal command"
+                  ${
+                    state.flagSubmitted
+                      ? "disabled placeholder=\"Investigation complete\""
+                      : 'placeholder=""'
+                  }
+                />
+              </form>
             </div>
-
-            <form
-              class="terminal-input"
-              id="terminal-form"
-            >
-              <span class="terminal-prompt">
-                ${escapeHtml(promptText())}
-              </span>
-
-              <input
-                id="command-input"
-                name="command"
-                type="text"
-                autocomplete="off"
-                autocapitalize="off"
-                spellcheck="false"
-                aria-label="Terminal command"
-              />
-            </form>
-
           </div>
 
           <aside class="sidebar">
-
             <section class="card status-card">
-              <div class="card-heading">
-                <div>
-                  <div class="eyebrow">LAB STATUS</div>
-                  <h3>${phaseLabel()}</h3>
-                </div>
-
-                <span class="status-dot ${
-                  state.phase === "complete"
-                    ? "safe"
-                    : state.kernelCompromised
-                      ? "danger"
-                      : "active"
-                }"></span>
+              <div class="eyebrow">LAB STATUS</div>
+              <div class="status-title-row">
+                <h2>${getPhaseLabel().replace(/^\d+\s\/\s/, "")}</h2>
+                <span class="status-indicator"></span>
               </div>
 
-              <div class="status-detail">
+              <div class="status-row">
                 <span>COMMANDS</span>
                 <strong>${state.commandCount}</strong>
               </div>
 
-              <div class="status-detail">
+              <div class="status-row">
                 <span>BOUNDARY</span>
-                <strong>
-                  ${
-                    state.kernelCompromised
-                      ? "COMPROMISED"
-                      : state.discoveredSharedKernel
-                        ? "SHARED KERNEL"
-                        : "UNKNOWN"
-                  }
-                </strong>
+                <strong>${getBoundaryLabel()}</strong>
               </div>
             </section>
 
             <section class="card objectives-card">
-              <div class="card-heading">
-                <div>
-                  <div class="eyebrow">INVESTIGATION</div>
-                  <h3>Objectives</h3>
-                </div>
-              </div>
+              <div class="eyebrow">INVESTIGATION</div>
+              <h2>Objectives</h2>
 
               <div class="objectives">
-                ${objectiveItems
-                  .map(
-                    (objective) => `
-                      <div class="objective ${
-                        objective.complete
-                          ? "complete"
-                          : objective.current
-                            ? "current"
-                            : ""
-                      }">
-                        <span class="objective-marker">
-                          ${
-                            objective.complete
-                              ? "✓"
-                              : objective.current
-                                ? "→"
-                                : "·"
-                          }
-                        </span>
-
-                        <span>
-                          ${escapeHtml(objective.label)}
-                        </span>
-                      </div>
-                    `,
-                  )
-                  .join("")}
+                ${renderObjectives()}
               </div>
             </section>
 
             <section class="card boundary-card">
               <div class="eyebrow">BOUNDARY MODEL</div>
 
-              <div class="boundary-stack">
-
-                <div class="boundary-layer">
-                  <span class="layer-number">01</span>
-
+              <div class="boundary-model">
+                <div class="boundary-step">
+                  <span>01</span>
                   <div>
                     <strong>Workload</strong>
                     <small>customer-supplied code</small>
                   </div>
                 </div>
 
-                <div class="boundary-line ${
-                  state.discoveredCodeExecution ? "lit" : ""
-                }"></div>
+                <div class="boundary-line"></div>
 
-                <div class="boundary-layer">
-                  <span class="layer-number">02</span>
-
+                <div class="boundary-step">
+                  <span>02</span>
                   <div>
                     <strong>Container</strong>
                     <small>namespaces + cgroups</small>
                   </div>
                 </div>
 
-                <div class="boundary-line ${
-                  state.discoveredSharedKernel ? "warning" : ""
-                }"></div>
+                <div class="boundary-line"></div>
 
-                <div class="boundary-layer ${
-                  state.kernelCompromised ? "danger-layer" : ""
+                <div class="boundary-step ${
+                  state.discoveredSharedKernel ? "active" : ""
                 }">
-                  <span class="layer-number">03</span>
-
+                  <span>03</span>
                   <div>
                     <strong>Linux kernel</strong>
-
-                    <small>
-                      ${
-                        state.kernelCompromised
-                          ? "compromised"
-                          : "shared host kernel"
-                      }
-                    </small>
+                    <small>shared host kernel</small>
                   </div>
                 </div>
-
               </div>
             </section>
-
           </aside>
-
         </section>
 
-        <section class="architecture-panel">
-          ${renderArchitecture()}
-        </section>
+        ${renderArchitecture()}
 
-        <section class="lower-grid">
-
-          <section class="card guide-card">
-            <div class="eyebrow">FIELD NOTES</div>
-
-            <h3>Start with discovery.</h3>
-
-            <p>
-              Treat the terminal like a real workload. Inspect files,
-              processes, namespaces, the node, and the kernel before
-              attempting the simulated exploit.
-            </p>
-
-            <div class="command-hints">
-              <code>ls -la</code>
-              <code>tree /</code>
-              <code>cat /etc/workload</code>
-              <code>cat /etc/security-boundary</code>
-              <code>cat /etc/node</code>
-            </div>
-          </section>
-
-          <section class="card isolation-card">
-            <div class="eyebrow">KEY QUESTION</div>
-
-            <h3>
-              What happens when the kernel is part of the boundary?
-            </h3>
-
-            <p>
-              The challenge is not simply whether a workload can be
-              compromised. It is whether that compromise can reach
-              another trust domain.
-            </p>
-
-            <div class="isolation-callout">
-              <span class="callout-mark">+</span>
-
-              <span>
-                Compare the shared-kernel workload with the isolated
-                execution zone before submitting your finding.
-              </span>
-            </div>
-          </section>
-
-        </section>
+        ${
+          state.flagSubmitted
+            ? `
+              <section class="completion-card">
+                <div class="eyebrow">INVESTIGATION COMPLETE</div>
+                <h2>The boundary held where you proved it did.</h2>
+                <p>
+                  You identified the shared kernel, demonstrated the blast radius,
+                  and compared it with isolated execution.
+                </p>
+                <a
+                  class="reward-link"
+                  href="https://edera.dev/love"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Collect your reward →
+                </a>
+              </section>
+            `
+            : ""
+        }
 
         <footer class="footer">
-          <span>EDERA / THE BOUNDARY</span>
-          <span>SECURITY CHALLENGE 01</span>
-          <span>WEBERNETES SIMULATION</span>
+          <span>EDERA / ISOLATION RESEARCH LAB</span>
+          <span>THE BOUNDARY / SECURITY CHALLENGE 01</span>
         </footer>
-
       </main>
     </div>
   `;
@@ -2173,65 +1430,57 @@ function render(): void {
 
   requestAnimationFrame(() => {
     const output =
-      document.querySelector<HTMLDivElement>("#terminal-output");
+      document.querySelector<HTMLElement>("[data-terminal-output]");
 
     if (output) {
       output.scrollTop = output.scrollHeight;
     }
-
-    const input =
-      document.querySelector<HTMLInputElement>("#command-input");
-
-    input?.focus();
   });
 }
 
-/* -------------------------------------------------------------------------- */
-/* Terminal interaction                                                       */
-/* -------------------------------------------------------------------------- */
-
 function wireTerminal(): void {
   const form =
-    document.querySelector<HTMLFormElement>("#terminal-form");
+    document.querySelector<HTMLFormElement>("[data-terminal-form]");
 
   const input =
-    document.querySelector<HTMLInputElement>("#command-input");
+    document.querySelector<HTMLInputElement>("[data-terminal-input]");
 
-  if (!form || !input) return;
+  const output =
+    document.querySelector<HTMLElement>("[data-terminal-output]");
 
-  form.addEventListener("submit", async (event) => {
+  if (!form || !input || !output) {
+    return;
+  }
+
+  if (!state.flagSubmitted) {
+    input.focus();
+  }
+
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
 
     const command = input.value.trim();
 
-    if (!command) return;
-
-    input.disabled = true;
-
-    addCommand(command);
-
-    const response = await runCommand(command);
-
-    if (response) {
-      if (state.flagSubmitted) {
-        addHistory("success", response);
-      } else if (
-        response.includes("FLAG REJECTED") ||
-        response.includes("ACCESS DENIED")
-      ) {
-        addHistory("error", response);
-      } else {
-        addHistory("output", response);
-      }
+    if (!command || state.flagSubmitted) {
+      return;
     }
 
-    updatePhase();
+    pushCommand(command);
+
+    const response = runCommand(command);
+
+    pushOutput(response);
+
     render();
   });
-}
 
-/* -------------------------------------------------------------------------- */
-/* Boot                                                                       */
-/* -------------------------------------------------------------------------- */
+  const terminal = document.querySelector<HTMLElement>("[data-terminal]");
+
+  terminal?.addEventListener("click", () => {
+    if (!state.flagSubmitted) {
+      input.focus();
+    }
+  });
+}
 
 render();
