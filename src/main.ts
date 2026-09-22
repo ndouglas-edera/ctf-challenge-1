@@ -1,12 +1,5 @@
 import "./style.css";
 
-/* -------------------------------------------------------------------------- */
-/* Cluster model                                                              */
-/*                                                                            */
-/* Single source of truth for command output and for the architecture         */
-/* diagram, so anything the player discovers is reflected in both.            */
-/* -------------------------------------------------------------------------- */
-
 interface Pod {
   name: string;
   namespace: string;
@@ -346,6 +339,8 @@ interface GameState {
   /* Pods the player has read in detail, used to reveal the diagram. */
   inspected: Set<string>;
   zonesListed: boolean;
+  cwd: string;
+  namespace: string;
 }
 
 const state: GameState = {
@@ -354,7 +349,12 @@ const state: GameState = {
   commandCount: 0,
   inspected: new Set<string>(),
   zonesListed: false,
+  cwd: "/home/platform",
+  namespace: "default",
 };
+
+/* Shell history, oldest first. Recalled with the up and down arrows. */
+const commandHistory: string[] = [];
 
 interface TerminalEntry {
   type: "command" | "output";
@@ -394,7 +394,15 @@ function sleep(ms: number): Promise<void> {
 }
 
 function prompt(): string {
-  return "platform@worker-02:~$";
+  const home = "/home/platform";
+  const path =
+    state.cwd === home
+      ? "~"
+      : state.cwd.startsWith(`${home}/`)
+        ? `~${state.cwd.slice(home.length)}`
+        : state.cwd;
+
+  return `platform@worker-02:${path}$`;
 }
 
 function complete(): boolean {
@@ -438,63 +446,375 @@ function notFound(kind: string, name: string): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Node filesystem                                                            */
+/*                                                                            */
+/* This is worker-02 itself, not a container: the daemon socket, the Edera     */
+/* config the daemon reads, and the manifests this node's workloads were       */
+/* applied from.                                                               */
+/* -------------------------------------------------------------------------- */
+
+const directories = new Set<string>([
+  "/",
+  "/etc",
+  "/etc/edera",
+  "/etc/kubernetes",
+  "/home",
+  "/home/platform",
+  "/home/platform/manifests",
+  "/proc",
+  "/var",
+  "/var/lib",
+  "/var/lib/edera",
+  "/var/lib/edera/protect",
+  "/var/lib/edera/protect/images",
+]);
+
+function manifestFor(pod: Pod): string {
+  return [
+    "apiVersion: v1",
+    "kind: Pod",
+    "metadata:",
+    `  name: ${pod.name}`,
+    `  namespace: ${pod.namespace}`,
+    "  annotations:",
+    ...Object.entries(pod.annotations).map(
+      ([key, value]) => `    ${key}: ${JSON.stringify(value)}`,
+    ),
+    "spec:",
+    ...(pod.runtimeClass ? [`  runtimeClassName: ${pod.runtimeClass}`] : []),
+    "  containers:",
+    `  - name: ${pod.app}`,
+    `    image: ${pod.image}`,
+    "    securityContext:",
+    `      privileged: ${pod.privileged}`,
+  ].join("\n");
+}
+
+const virtualFiles: Record<string, string> = {
+  "/etc/hostname": NODE.name,
+
+  "/etc/os-release": [
+    'NAME="Edera Protect Host"',
+    'VERSION="1.4"',
+    "ID=edera",
+    "VARIANT=worker",
+  ].join("\n"),
+
+  "/proc/version": `Linux version ${NODE.kernelVersion} (build@${NODE.name})`,
+
+  "/etc/edera/daemon.toml": [
+    "[daemon]",
+    'listen = "unix:///var/lib/edera/protect/daemon.socket"',
+    "",
+    "[zone]",
+    `default-kernel = "${ZONE_KERNEL}"`,
+    "",
+    "[zone.kernel-variants]",
+    ...kernelVariants.map(
+      (variant) => `${variant.name} = "${variant.image}"`,
+    ),
+  ].join("\n"),
+
+  "/etc/edera/cri.toml": [
+    "[runtime]",
+    'handler = "edera"',
+    "",
+    "# Pods are routed to a zone only when their spec sets",
+    "# runtimeClassName: edera. Anything else falls through to",
+    "# the default runtime and shares this node's kernel.",
+    'fallback = "runc"',
+  ].join("\n"),
+
+  "/var/lib/edera/protect/daemon.socket": "",
+
+  "/home/platform/.profile": [
+    "# platform engineer, worker-02",
+    "export KUBECONFIG=/home/platform/.kube/config",
+    "export EDERA_SOCKET=/var/lib/edera/protect/daemon.socket",
+  ].join("\n"),
+
+  "/home/platform/README": [
+    "Node audit notes",
+    "----------------",
+    "Manifests for everything scheduled here are in ./manifests.",
+    "",
+    "kubectl and protect are both on PATH. The daemon socket is",
+    "readable by this account, so protect talks to it directly.",
+  ].join("\n"),
+};
+
+/* Each workload's manifest, as applied. */
+for (const pod of pods) {
+  virtualFiles[`/home/platform/manifests/${pod.name}.yaml`] = manifestFor(pod);
+  directories.add("/home/platform/manifests");
+}
+
+function resolvePath(input: string): string {
+  const base = input.startsWith("/")
+    ? []
+    : state.cwd.split("/").filter(Boolean);
+
+  const expanded = input.startsWith("~")
+    ? `/home/platform${input.slice(1)}`
+    : input;
+
+  const segments = expanded.startsWith("/")
+    ? expanded.split("/").filter(Boolean)
+    : [...base, ...expanded.split("/").filter(Boolean)];
+
+  const stack: string[] = [];
+
+  for (const segment of segments) {
+    if (segment === ".") continue;
+    if (segment === "..") stack.pop();
+    else stack.push(segment);
+  }
+
+  return `/${stack.join("/")}`;
+}
+
+function childrenOf(path: string): string[] {
+  const prefix = path === "/" ? "/" : `${path}/`;
+  const seen = new Set<string>();
+
+  for (const candidate of [...directories, ...Object.keys(virtualFiles)]) {
+    if (candidate === path || !candidate.startsWith(prefix)) continue;
+
+    const rest = candidate.slice(prefix.length);
+
+    if (rest) seen.add(rest.split("/")[0]);
+  }
+
+  return [...seen].sort();
+}
+
+function listDirectory(input: string, long: boolean, showHidden: boolean): string {
+  const path = resolvePath(input || state.cwd);
+
+  if (path in virtualFiles) return input || path;
+
+  if (!directories.has(path)) {
+    return `ls: cannot access '${input || path}': No such file or directory`;
+  }
+
+  const entries = childrenOf(path).filter(
+    (entry) => showHidden || !entry.startsWith("."),
+  );
+
+  if (entries.length === 0) return "";
+
+  if (!long) return entries.join("  ");
+
+  return [
+    `total ${entries.length * 4}`,
+    ...entries.map((entry) => {
+      const full = path === "/" ? `/${entry}` : `${path}/${entry}`;
+      const isDir = directories.has(full);
+      const size = isDir ? 4096 : (virtualFiles[full]?.length ?? 0);
+
+      return `${isDir ? "drwxr-xr-x" : "-rw-r--r--"}  1 platform platform ${String(
+        size,
+      ).padStart(6)} ${entry}`;
+    }),
+  ].join("\n");
+}
+
+function treeFrom(path: string, prefix = ""): string[] {
+  const entries = childrenOf(path);
+
+  return entries.flatMap((entry, index) => {
+    const last = index === entries.length - 1;
+    const full = path === "/" ? `/${entry}` : `${path}/${entry}`;
+    const line = `${prefix}${last ? "└── " : "├── "}${entry}`;
+
+    return directories.has(full)
+      ? [line, ...treeFrom(full, `${prefix}${last ? "    " : "│   "}`)]
+      : [line];
+  });
+}
+
+function changeDirectory(input: string | undefined): string {
+  const path = resolvePath(input ?? "/home/platform");
+
+  if (directories.has(path)) {
+    state.cwd = path;
+    return "";
+  }
+
+  if (path in virtualFiles) return `cd: not a directory: ${input}`;
+
+  return `cd: no such file or directory: ${input}`;
+}
+
+function readFile(input: string | undefined): string {
+  if (!input) return "usage: cat <file>";
+
+  const path = resolvePath(input);
+
+  if (path in virtualFiles) {
+    return virtualFiles[path] || `cat: ${input}: is a socket`;
+  }
+
+  if (directories.has(path)) return `cat: ${input}: Is a directory`;
+
+  return `cat: ${input}: No such file or directory`;
+}
+
+/* -------------------------------------------------------------------------- */
 /* kubectl                                                                    */
 /* -------------------------------------------------------------------------- */
+
+interface KubectlFlags {
+  namespace: string;
+  allNamespaces: boolean;
+  showLabels: boolean;
+  wide: boolean;
+  yaml: boolean;
+  selector: string | null;
+}
+
+function parseFlags(tokens: string[]): KubectlFlags {
+  const flags: KubectlFlags = {
+    namespace: state.namespace,
+    allNamespaces: false,
+    showLabels: false,
+    wide: false,
+    yaml: false,
+    selector: null,
+  };
+
+  tokens.forEach((token, index) => {
+    const next = tokens[index + 1];
+
+    if (token === "-A" || token === "--all-namespaces") flags.allNamespaces = true;
+    if (token === "--show-labels") flags.showLabels = true;
+
+    if (token === "-n" || token === "--namespace") {
+      if (next) flags.namespace = next;
+    }
+
+    if (token.startsWith("--namespace=")) flags.namespace = token.slice(12);
+
+    if (token === "-o" || token === "--output") {
+      if (next === "wide") flags.wide = true;
+      if (next === "yaml") flags.yaml = true;
+    }
+
+    if (token.startsWith("-o=")) {
+      if (token.slice(3) === "wide") flags.wide = true;
+      if (token.slice(3) === "yaml") flags.yaml = true;
+    }
+
+    if (token === "-l" || token === "--selector") {
+      if (next) flags.selector = next;
+    }
+
+    if (token.startsWith("-l=")) flags.selector = token.slice(3);
+  });
+
+  return flags;
+}
+
+/*
+ * Every workload is labelled as Edera-managed. A label is a claim the author
+ * wrote down, not something the platform enforces — one of these pods does
+ * not back it up in its spec.
+ */
+function labelsFor(pod: Pod): Record<string, string> {
+  return {
+    app: pod.app,
+    team: pod.namespace,
+    runtime: "edera",
+  };
+}
+
+function labelString(pod: Pod): string {
+  return Object.entries(labelsFor(pod))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(",");
+}
+
+function matchesSelector(pod: Pod, selector: string | null): boolean {
+  if (!selector) return true;
+
+  const labels = labelsFor(pod);
+
+  return selector.split(",").every((clause) => {
+    const [key, value] = clause.split("=");
+
+    return labels[key.trim()] === value?.trim();
+  });
+}
+
+function scopedPods(flags: KubectlFlags): Pod[] {
+  return pods
+    .filter((pod) => flags.allNamespaces || pod.namespace === flags.namespace)
+    .filter((pod) => matchesSelector(pod, flags.selector));
+}
 
 function kubectlUsage(): string {
   return [
     "usage: kubectl <verb> <resource> [name] [flags]",
     "",
-    "  kubectl get pods [-o wide]",
-    "  kubectl get pod <name> -o yaml",
-    "  kubectl describe pod <name>",
+    "  kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
+    "  kubectl get pod <name> -n <namespace> -o yaml",
+    "  kubectl describe pod <name> -n <namespace>",
     "  kubectl get nodes",
-    "  kubectl describe node <name>",
+    "  kubectl describe node worker-02",
     "  kubectl get runtimeclass",
+    "  kubectl exec <name> -n <namespace> -- <command>",
   ].join("\n");
 }
 
-function getPods(wide: boolean): string {
-  if (!wide) {
-    return table(
-      ["NAMESPACE", "NAME", "READY", "STATUS"],
-      pods.map((pod) => [
-        pod.namespace,
-        pod.name,
-        pod.status === "Running" ? "1/1" : "0/1",
-        pod.status,
-      ]),
-    );
+function getPods(flags: KubectlFlags): string {
+  const visible = scopedPods(flags);
+
+  if (visible.length === 0) {
+    return flags.allNamespaces
+      ? "No resources found."
+      : `No resources found in ${flags.namespace} namespace.`;
   }
 
-  return [
-    table(
-      ["NAMESPACE", "NAME", "READY", "STATUS", "RESTARTS", "IP", "NODE"],
-      pods.map((pod, index) => [
-        pod.namespace,
-        pod.name,
-        pod.status === "Running" ? "1/1" : "0/1",
-        pod.status,
-        "0",
-        `10.244.1.${21 + index}`,
-        pod.node,
-      ]),
-    ),
-    "",
-    "Every pod above is scheduled on the same node.",
-  ].join("\n");
+  const headers = ["NAME", "READY", "STATUS", "RESTARTS", "AGE"];
+  if (flags.allNamespaces) headers.unshift("NAMESPACE");
+  if (flags.wide) headers.push("IP", "NODE");
+  if (flags.showLabels) headers.push("LABELS");
+
+  const rows = visible.map((pod) => {
+    const row = [
+      pod.name,
+      pod.status === "Running" ? "1/1" : "0/1",
+      pod.status,
+      "0",
+      "3h12m",
+    ];
+
+    if (flags.allNamespaces) row.unshift(pod.namespace);
+    if (flags.wide) {
+      row.push(`10.244.1.${21 + pods.indexOf(pod)}`, pod.node);
+    }
+    if (flags.showLabels) row.push(labelString(pod));
+
+    return row;
+  });
+
+  return table(headers, rows);
 }
 
-function describePod(name: string | undefined): string {
-  if (!name) {
-    return "error: resource name may not be empty";
-  }
+function resolvePod(name: string, flags: KubectlFlags): Pod | undefined {
+  return pods.find(
+    (pod) =>
+      pod.name === name &&
+      (flags.allNamespaces || pod.namespace === flags.namespace),
+  );
+}
 
-  const pod = findPod(name);
+function describePod(name: string | undefined, flags: KubectlFlags): string {
+  if (!name) return "error: resource name may not be empty";
 
-  if (!pod) {
-    return notFound("pods", name);
-  }
+  const pod = resolvePod(name, flags);
+
+  if (!pod) return notFound("pods", name);
 
   state.inspected.add(pod.name);
 
@@ -505,11 +825,18 @@ function describePod(name: string | undefined): string {
         : `               ${key}: ${value}`,
   );
 
+  const labelLines = Object.entries(labelsFor(pod)).map(([key, value], index) =>
+    index === 0
+      ? `Labels:        ${key}=${value}`
+      : `               ${key}=${value}`,
+  );
+
   return [
     `Name:          ${pod.name}`,
     `Namespace:     ${pod.namespace}`,
     `Node:          ${pod.node}`,
     `Status:        ${pod.status}`,
+    ...labelLines,
     ...annotationLines,
     `Runtime Class Name:  ${pod.runtimeClass ?? "<none>"}`,
     "",
@@ -525,16 +852,12 @@ function describePod(name: string | undefined): string {
   ].join("\n");
 }
 
-function getPodYaml(name: string | undefined): string {
-  if (!name) {
-    return "error: resource name may not be empty";
-  }
+function getPodYaml(name: string | undefined, flags: KubectlFlags): string {
+  if (!name) return "error: resource name may not be empty";
 
-  const pod = findPod(name);
+  const pod = resolvePod(name, flags);
 
-  if (!pod) {
-    return notFound("pods", name);
-  }
+  if (!pod) return notFound("pods", name);
 
   state.inspected.add(pod.name);
 
@@ -544,6 +867,10 @@ function getPodYaml(name: string | undefined): string {
     "metadata:",
     `  name: ${pod.name}`,
     `  namespace: ${pod.namespace}`,
+    "  labels:",
+    ...Object.entries(labelsFor(pod)).map(
+      ([key, value]) => `    ${key}: ${JSON.stringify(value)}`,
+    ),
     "  annotations:",
     ...Object.entries(pod.annotations).map(
       ([key, value]) => `    ${key}: ${JSON.stringify(value)}`,
@@ -562,19 +889,15 @@ function getPodYaml(name: string | undefined): string {
 
 function getNodes(): string {
   return table(
-    ["NAME", "STATUS", "ROLES", "VERSION"],
-    [[NODE.name, NODE.status, "worker", "v1.31.4"]],
+    ["NAME", "STATUS", "ROLES", "AGE", "VERSION"],
+    [[NODE.name, NODE.status, "worker", "41d", "v1.31.4"]],
   );
 }
 
 function describeNode(name: string | undefined): string {
-  if (!name) {
-    return "error: resource name may not be empty";
-  }
+  if (!name) return "error: resource name may not be empty";
 
-  if (name !== NODE.name) {
-    return notFound("nodes", name);
-  }
+  if (name !== NODE.name) return notFound("nodes", name);
 
   const scheduled = pods.filter((pod) => pod.node === NODE.name);
 
@@ -606,50 +929,92 @@ function describeNode(name: string | undefined): string {
   ].join("\n");
 }
 
+function getNamespaces(): string {
+  const names = [...new Set(pods.map((pod) => pod.namespace))];
+
+  return table(
+    ["NAME", "STATUS", "AGE"],
+    ["default", ...names].map((name) => [name, "Active", "41d"]),
+  );
+}
+
 function getRuntimeClass(): string {
   return [
-    table(
-      ["NAME", "HANDLER", "AGE"],
-      [["edera", "edera", "41d"]],
-    ),
+    table(["NAME", "HANDLER", "AGE"], [["edera", "edera", "41d"]]),
     "",
     "The edera RuntimeClass is installed and available to every namespace.",
   ].join("\n");
 }
 
-function kubectl(input: string): string {
-  const args = input.split(/\s+/).slice(1);
-  const [verb, resource, name] = args;
-  const flags = args.slice(1);
+function kubectlExec(name: string | undefined, rest: string, flags: KubectlFlags): string {
+  if (!name) return "error: pod name may not be empty";
 
-  if (!verb) {
-    return kubectlUsage();
+  const pod = resolvePod(name, flags);
+
+  if (!pod) return notFound("pods", name);
+
+  const wantsKernel = /proc\/version|uname/.test(rest);
+
+  if (!wantsKernel) return `[${pod.name}] command executed`;
+
+  if (pod.zone) {
+    const zone = findZone(pod.zone);
+    const version = zone?.kernel.split(":")[1] ?? "6.15";
+
+    return `Linux version ${version}-edera-zone (zone@${pod.zone})`;
   }
+
+  return [
+    `Linux version ${NODE.kernelVersion} (build@${NODE.name})`,
+    "",
+    `That is the node's own kernel. ${pod.name} did not boot one.`,
+    "It is sharing the host kernel, with privileged set to true.",
+  ].join("\n");
+}
+
+function kubectl(raw: string): string {
+  const tokens = raw.split(/\s+/).slice(1);
+  const separator = tokens.indexOf("--");
+  const head = separator === -1 ? tokens : tokens.slice(0, separator);
+  const tail = separator === -1 ? [] : tokens.slice(separator + 1);
+
+  const positional = head.filter(
+    (token, index) =>
+      !token.startsWith("-") &&
+      !["-n", "--namespace", "-o", "--output", "-l", "--selector"].includes(
+        head[index - 1] ?? "",
+      ),
+  );
+
+  const [verb, resource, name] = positional;
+  const flags = parseFlags(head);
+
+  if (!verb) return kubectlUsage();
 
   const isPod = ["pod", "pods", "po"].includes(resource ?? "");
   const isNode = ["node", "nodes", "no"].includes(resource ?? "");
+  const isNamespace = ["namespace", "namespaces", "ns"].includes(resource ?? "");
   const isRuntimeClass = ["runtimeclass", "runtimeclasses", "rc"].includes(
     resource ?? "",
   );
 
-  const wants = (...tokens: string[]): boolean =>
-    flags.some((flag) => tokens.includes(flag));
+  if (verb === "exec") {
+    return kubectlExec(resource, tail.join(" "), flags);
+  }
 
   if (verb === "get" && isPod) {
-    if (wants("yaml") || input.includes("-o yaml")) {
-      return getPodYaml(name && !name.startsWith("-") ? name : undefined);
-    }
-
-    return getPods(wants("wide") || input.includes("-o wide"));
+    if (flags.yaml) return getPodYaml(name, flags);
+    return getPods(flags);
   }
 
   if (verb === "get" && isNode) return getNodes();
+  if (verb === "get" && isNamespace) return getNamespaces();
   if (verb === "get" && isRuntimeClass) return getRuntimeClass();
 
-  if (verb === "describe" && isPod) return describePod(name);
+  if (verb === "describe" && isPod) return describePod(name, flags);
   if (verb === "describe" && isNode) return describeNode(name ?? NODE.name);
 
-  return [`error: unknown command "${input}"`, "", kubectlUsage()].join("\n");
+  return [`error: unknown command "${raw}"`, "", kubectlUsage()].join("\n");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -852,38 +1217,6 @@ function workloadExec(name: string | undefined, rest: string): string {
   ].join("\n");
 }
 
-function kubectlExec(name: string | undefined, rest: string): string {
-  if (!name) {
-    return "error: pod name may not be empty";
-  }
-
-  const pod = findPod(name);
-
-  if (!pod) {
-    return notFound("pods", name);
-  }
-
-  const wantsKernel = /proc\/version|uname/.test(rest);
-
-  if (!wantsKernel) {
-    return `[${pod.name}] command executed`;
-  }
-
-  if (pod.zone) {
-    const zone = findZone(pod.zone);
-    const version = zone?.kernel.split(":")[1] ?? "6.15";
-
-    return `Linux version ${version}-edera-zone (zone@${pod.zone})`;
-  }
-
-  return [
-    `Linux version ${NODE.kernelVersion} (build@${NODE.name})`,
-    "",
-    `That is the node's own kernel. ${pod.name} did not boot one.`,
-    "It is sharing the host kernel, with privileged set to true.",
-  ].join("\n");
-}
-
 function hostStatus(): string {
   return [
     "daemon:    running",
@@ -1018,13 +1351,14 @@ async function runCommand(command: string): Promise<string> {
       "THE BOUNDARY / SECURITY CHALLENGE 01",
       "",
       "Kubernetes",
-      "  kubectl get pods [-o wide]",
-      "  kubectl get pod <name> -o yaml",
-      "  kubectl describe pod <name>",
+      "  kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
+      "  kubectl get pod <name> -n <namespace> -o yaml",
+      "  kubectl describe pod <name> -n <namespace>",
+      "  kubectl get namespaces",
       "  kubectl get nodes",
       "  kubectl describe node worker-02",
       "  kubectl get runtimeclass",
-      "  kubectl exec <pod> -- <command>",
+      "  kubectl exec <name> -n <namespace> -- <command>",
       "",
       "Edera Protect",
       "  protect host status",
@@ -1035,6 +1369,12 @@ async function runCommand(command: string): Promise<string> {
       "  protect image list-kernel-variants",
       "  protect workload list",
       "  protect workload exec <name> <command>",
+      "",
+      "Shell",
+      "  pwd, cd, ls [-la], cat <file>, tree",
+      "  whoami, hostname, uname -a, env, ps",
+      "  history          recall previous commands (or use ↑ / ↓)",
+      "  clear",
       "",
       "Lab",
       "  objective        show the current objective",
@@ -1075,23 +1415,79 @@ async function runCommand(command: string): Promise<string> {
     return submit(raw.slice(6));
   }
 
+  if (normalized === "history") {
+    if (commandHistory.length === 0) return "No commands in history yet.";
+
+    return commandHistory
+      .map((entry, index) => `${String(index + 1).padStart(4)}  ${entry}`)
+      .join("\n");
+  }
+
+  /* kubectl keeps original case: namespaces and pod names are case sensitive. */
   if (normalized === "kubectl" || normalized.startsWith("kubectl ")) {
-    const parts = raw.split(/\s+/);
-
-    if (parts[1] === "exec") {
-      const separator = raw.indexOf("--");
-
-      return kubectlExec(
-        parts[2],
-        separator === -1 ? raw : raw.slice(separator + 2),
-      );
-    }
-
-    return kubectl(normalized);
+    return kubectl(raw);
   }
 
   if (normalized === "protect" || normalized.startsWith("protect ")) {
     return protectCli(normalized);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Node shell                                                             */
+  /* ---------------------------------------------------------------------- */
+
+  const [binary, ...args] = raw.split(/\s+/);
+
+  if (binary === "pwd") return state.cwd;
+  if (binary === "whoami") return "platform";
+  if (binary === "hostname") return NODE.name;
+  if (binary === "uname") {
+    return args.includes("-a") || args.includes("-r")
+      ? `Linux ${NODE.name} ${NODE.kernelVersion} x86_64 GNU/Linux`
+      : "Linux";
+  }
+
+  if (binary === "cd") return changeDirectory(args[0]);
+
+  if (binary === "ls") {
+    const long = args.some((arg) => /^-\w*l/.test(arg));
+    const hidden = args.some((arg) => /^-\w*a/.test(arg));
+    const target = args.find((arg) => !arg.startsWith("-")) ?? "";
+
+    return listDirectory(target, long, hidden);
+  }
+
+  if (binary === "cat") return readFile(args[0]);
+
+  if (binary === "tree") {
+    const path = resolvePath(args[0] ?? state.cwd);
+
+    if (!directories.has(path)) return `tree: ${args[0] ?? path}: not a directory`;
+
+    return [path, ...treeFrom(path)].join("\n");
+  }
+
+  if (binary === "env") {
+    return [
+      "USER=platform",
+      `HOSTNAME=${NODE.name}`,
+      "KUBECONFIG=/home/platform/.kube/config",
+      "EDERA_SOCKET=/var/lib/edera/protect/daemon.socket",
+      `PWD=${state.cwd}`,
+    ].join("\n");
+  }
+
+  if (binary === "ps") {
+    return table(
+      ["PID", "USER", "COMMAND"],
+      [
+        ["1", "root", "/sbin/init"],
+        ["612", "root", "/usr/sbin/protect-daemon"],
+        ["988", "root", "containerd"],
+        ["1204", "root", "kubelet"],
+        ["2871", "platform", "-bash"],
+      ],
+    );
   }
 
   return [
@@ -1478,6 +1874,13 @@ function render(): void {
   attachTerminalHandlers();
 }
 
+/*
+ * Index into commandHistory while the player is arrowing through it.
+ * -1 means "not browsing", i.e. sitting on a fresh line.
+ */
+let historyCursor = -1;
+let draft = "";
+
 function attachTerminalHandlers(): void {
   const form = document.querySelector<HTMLFormElement>("#terminal-form");
   const input = document.querySelector<HTMLInputElement>("#terminal-input");
@@ -1490,6 +1893,40 @@ function attachTerminalHandlers(): void {
     input.focus();
   });
 
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (commandHistory.length === 0) return;
+
+    /* Stop the caret jumping to the start or end of the line. */
+    event.preventDefault();
+
+    if (event.key === "ArrowUp") {
+      if (historyCursor === -1) {
+        draft = input.value;
+        historyCursor = commandHistory.length - 1;
+      } else if (historyCursor > 0) {
+        historyCursor--;
+      }
+
+      input.value = commandHistory[historyCursor];
+    } else {
+      if (historyCursor === -1) return;
+
+      if (historyCursor < commandHistory.length - 1) {
+        historyCursor++;
+        input.value = commandHistory[historyCursor];
+      } else {
+        historyCursor = -1;
+        input.value = draft;
+      }
+    }
+
+    /* Put the caret at the end of the recalled command. */
+    requestAnimationFrame(() => {
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -1499,6 +1936,14 @@ function attachTerminalHandlers(): void {
       input.focus();
       return;
     }
+
+    /* Consecutive duplicates are noise in the recall list. */
+    if (commandHistory[commandHistory.length - 1] !== command) {
+      commandHistory.push(command);
+    }
+
+    historyCursor = -1;
+    draft = "";
 
     input.disabled = true;
 
