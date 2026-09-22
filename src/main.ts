@@ -1230,7 +1230,7 @@ function render(): void {
         </div>
 
         <div class="challenge-lockup">
-          <span>SECURITY CHALLENGE 01</span>
+          <!--<span>SECURITY CHALLENGE 01</span>-->
           <!--<strong>THE BOUNDARY</strong>-->
         </div>
 
@@ -1244,10 +1244,10 @@ function render(): void {
         <section class="mission">
           <div class="mission-copy">
             <span class="eyebrow">MISSION BRIEF</span>
-            <!--<h1>
-              Find the boundary.
-              <em>Then test it.</em>
-            </h1>-->
+            <h1>
+              CTF Challenge
+              <em>#1</em>
+            </h1>
 
             <p>
               You have shell access to an untrusted customer workload
