@@ -51,6 +51,113 @@ const state: GameState = {
 
 const terminalHistory: TerminalEntry[] = [];
 
+/* -------------------------------------------------------------------------- */
+/* Cluster model                                                              */
+/*                                                                            */
+/* This is the single source of truth for both `kubectl` output and the       */
+/* architecture diagram, so a delete in the terminal is reflected below.      */
+/* -------------------------------------------------------------------------- */
+
+type PodStatus = "Running" | "Terminated";
+
+interface Pod {
+  name: string;
+  namespace: string;
+  workload: string;
+  node: string;
+  status: PodStatus;
+  restarts: number;
+}
+
+interface ClusterNode {
+  name: string;
+  status: "Ready" | "NotReady";
+  kernel: string;
+  runtime: string;
+}
+
+const TENANT = "customer-a";
+
+const pods: Pod[] = [
+  {
+    name: "image-processor-a",
+    namespace: "customer-a",
+    workload: "image-processor",
+    node: "worker-02",
+    status: "Running",
+    restarts: 0,
+  },
+  {
+    name: "billing-api-b",
+    namespace: "customer-b",
+    workload: "billing-api",
+    node: "worker-02",
+    status: "Running",
+    restarts: 0,
+  },
+  {
+    name: "recommendation-c",
+    namespace: "customer-c",
+    workload: "recommendation",
+    node: "worker-02",
+    status: "Running",
+    restarts: 0,
+  },
+  {
+    name: "platform-agent",
+    namespace: "platform",
+    workload: "platform-agent",
+    node: "worker-02",
+    status: "Running",
+    restarts: 0,
+  },
+];
+
+const clusterNodes: ClusterNode[] = [
+  {
+    name: "worker-02",
+    status: "Ready",
+    kernel: "acme-kernel-001",
+    runtime: "containerd://1.7.13",
+  },
+];
+
+function findPod(name: string): Pod | undefined {
+  return pods.find((pod) => pod.name === name);
+}
+
+function findNode(name: string): ClusterNode | undefined {
+  return clusterNodes.find((node) => node.name === name);
+}
+
+function nodeIsDown(): boolean {
+  return clusterNodes.some((node) => node.status === "NotReady");
+}
+
+function terminatedPods(): Pod[] {
+  return pods.filter((pod) => pod.status === "Terminated");
+}
+
+/*
+ * Builds a left-aligned, column-padded table the way kubectl does, so the
+ * output stays aligned as pod names and statuses change at runtime.
+ */
+function table(headers: string[], rows: string[][]): string {
+  const widths = headers.map((header, index) =>
+    Math.max(header.length, ...rows.map((row) => row[index].length)),
+  );
+
+  const line = (cells: string[]): string =>
+    cells
+      .map((cell, index) =>
+        index === cells.length - 1 ? cell : cell.padEnd(widths[index] + 3),
+      )
+      .join("")
+      .trimEnd();
+
+  return [line(headers), ...rows.map(line)].join("\n");
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -448,6 +555,298 @@ function treeOutput(): string {
 /* Command engine                                                             */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* kubectl                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function kubectlUsage(): string {
+  return [
+    "usage: kubectl <verb> <resource> [name]",
+    "",
+    "  kubectl get pods",
+    "  kubectl get nodes",
+    "  kubectl get namespaces",
+    "  kubectl describe pod <name>",
+    "  kubectl describe node <name>",
+    "  kubectl delete pod <name>",
+    "  kubectl delete node <name>",
+  ].join("\n");
+}
+
+/*
+ * Writes outside customer-a are refused by the platform API until the kernel
+ * is compromised. That is the whole lesson: the API was enforcing the
+ * boundary, the kernel underneath was not.
+ */
+function writeDenied(resource: string, namespace: string | null): string {
+  if (state.isolatedTested || state.flagSubmitted) {
+    return [
+      "Error from server (Forbidden):",
+      `${resource} is forbidden.`,
+      "",
+      "The workload now runs in a dedicated execution zone.",
+      "Kernel access no longer crosses the zone boundary.",
+    ].join("\n");
+  }
+
+  return [
+    "Error from server (Forbidden):",
+    `${resource} is forbidden:`,
+    namespace
+      ? `User "${TENANT}" cannot delete resource in namespace "${namespace}".`
+      : `User "${TENANT}" cannot delete cluster-scoped resource.`,
+    "",
+    "The platform API enforces this boundary.",
+    "The kernel underneath does not.",
+  ].join("\n");
+}
+
+function getPods(): string {
+  state.discoveredNode = true;
+
+  const rows = pods.map((pod) => [
+    pod.name,
+    pod.status === "Running" ? "1/1" : "0/1",
+    pod.status,
+    String(pod.restarts),
+    pod.node,
+  ]);
+
+  return table(["NAME", "READY", "STATUS", "RESTARTS", "NODE"], rows);
+}
+
+function getNodes(): string {
+  state.discoveredNode = true;
+  state.discoveredSharedKernel = true;
+
+  const rows = clusterNodes.map((node) => [
+    node.name,
+    node.status,
+    "worker",
+    node.kernel,
+  ]);
+
+  return [
+    table(["NAME", "STATUS", "ROLES", "KERNEL"], rows),
+    "",
+    "Every pod on this node runs on the kernel listed above.",
+  ].join("\n");
+}
+
+function describePod(name: string | undefined): string {
+  if (!name) {
+    return "error: resource name may not be empty";
+  }
+
+  const pod = findPod(name);
+
+  if (!pod) {
+    return `Error from server (NotFound): pods "${name}" not found`;
+  }
+
+  const node = findNode(pod.node);
+
+  state.discoveredNode = true;
+  state.discoveredSharedKernel = true;
+
+  return [
+    `Name:          ${pod.name}`,
+    `Namespace:     ${pod.namespace}`,
+    `Node:          ${pod.node}`,
+    `Status:        ${pod.status}`,
+    `Restarts:      ${pod.restarts}`,
+    "",
+    "Containers:",
+    `  ${pod.workload}:`,
+    "    Trust:       untrusted customer code",
+    "    Isolation:   Linux namespaces + cgroups",
+    `    Runtime:     ${node?.runtime ?? "unknown"}`,
+    `    Kernel:      ${node?.kernel ?? "unknown"} (shared)`,
+    "",
+    "Notes:",
+    "  The container boundary is enforced by the kernel",
+    "  named above. That kernel is shared with every other",
+    `  pod scheduled on ${pod.node}.`,
+  ].join("\n");
+}
+
+function describeNode(name: string | undefined): string {
+  if (!name) {
+    return "error: resource name may not be empty";
+  }
+
+  const node = findNode(name);
+
+  if (!node) {
+    return `Error from server (NotFound): nodes "${name}" not found`;
+  }
+
+  state.discoveredNode = true;
+  state.discoveredSharedKernel = true;
+
+  const scheduled = pods.filter((pod) => pod.node === node.name);
+
+  return [
+    `Name:          ${node.name}`,
+    `Status:        ${node.status}`,
+    `Kernel:        ${node.kernel}`,
+    `Runtime:       ${node.runtime}`,
+    "",
+    "Non-terminated pods:",
+    table(
+      ["NAMESPACE", "NAME", "STATUS"],
+      scheduled.map((pod) => [pod.namespace, pod.name, pod.status]),
+    )
+      .split("\n")
+      .map((line) => `  ${line}`)
+      .join("\n"),
+    "",
+    "All of the above share a single kernel.",
+    "There is no boundary between them below the container layer.",
+  ].join("\n");
+}
+
+function deletePod(name: string | undefined): string {
+  if (!name) {
+    return "error: resource name may not be empty";
+  }
+
+  const pod = findPod(name);
+
+  if (!pod || pod.status === "Terminated") {
+    return `Error from server (NotFound): pods "${name}" not found`;
+  }
+
+  if (pod.namespace !== TENANT && !state.kernelCompromised) {
+    return writeDenied(`pods "${pod.name}"`, pod.namespace);
+  }
+
+  if (pod.namespace !== TENANT && (state.isolatedTested || state.flagSubmitted)) {
+    return writeDenied(`pods "${pod.name}"`, pod.namespace);
+  }
+
+  /*
+   * customer-a owns this workload, so the platform honours the delete and the
+   * controller immediately reschedules it. No blast radius, no diagram change.
+   */
+  if (pod.namespace === TENANT) {
+    pod.restarts++;
+
+    return [
+      `pod "${pod.name}" deleted`,
+      "",
+      "The workload controller rescheduled it immediately.",
+      `restarts: ${pod.restarts}`,
+      "",
+      "Deleting your own workload proves nothing about the boundary.",
+    ].join("\n");
+  }
+
+  pod.status = "Terminated";
+
+  if (pod.namespace === "customer-b") {
+    state.customerBAccessed = true;
+  }
+
+  if (pod.namespace === "platform") {
+    state.platformAccessed = true;
+  }
+
+  return [
+    `pod "${pod.name}" deleted`,
+    "",
+    "CROSS-TENANT IMPACT",
+    "-------------------",
+    `namespace: ${pod.namespace}`,
+    `workload: ${pod.workload}`,
+    "",
+    "This delete did not go through the platform API.",
+    "It was issued with kernel-level control of the node.",
+    "",
+    "A neighbouring tenant's workload was destroyed by code",
+    "running inside customer-a.",
+  ].join("\n");
+}
+
+function deleteNode(name: string | undefined): string {
+  if (!name) {
+    return "error: resource name may not be empty";
+  }
+
+  const node = findNode(name);
+
+  if (!node) {
+    return `Error from server (NotFound): nodes "${name}" not found`;
+  }
+
+  if (!state.kernelCompromised || state.isolatedTested || state.flagSubmitted) {
+    return writeDenied(`nodes "${node.name}"`, null);
+  }
+
+  if (node.status === "NotReady") {
+    return `node "${node.name}" is already NotReady`;
+  }
+
+  node.status = "NotReady";
+
+  const casualties = pods.filter(
+    (pod) => pod.node === node.name && pod.status === "Running",
+  );
+
+  casualties.forEach((pod) => {
+    pod.status = "Terminated";
+  });
+
+  state.customerBAccessed = true;
+  state.platformAccessed = true;
+
+  return [
+    `node "${node.name}" deleted`,
+    "",
+    "FULL NODE COMPROMISE",
+    "--------------------",
+    ...casualties.map((pod) => `[+] terminated ${pod.namespace}/${pod.workload}`),
+    "",
+    "Every tenant on this node is gone.",
+    "",
+    "They were never isolated from each other.",
+    "They were sharing the kernel that was just taken.",
+  ].join("\n");
+}
+
+function kubectl(input: string): string {
+  const [verb, resource, name] = input.split(/\s+/).slice(1);
+
+  if (!verb) {
+    return kubectlUsage();
+  }
+
+  const isPod = ["pod", "pods", "po"].includes(resource ?? "");
+  const isNode = ["node", "nodes", "no"].includes(resource ?? "");
+  const isNamespace = ["namespace", "namespaces", "ns"].includes(resource ?? "");
+
+  if (verb === "get" && isPod) return getPods();
+  if (verb === "get" && isNode) return getNodes();
+  if (verb === "describe" && isPod) return describePod(name);
+  if (verb === "describe" && isNode) return describeNode(name);
+  if (verb === "delete" && isPod) return deletePod(name);
+  if (verb === "delete" && isNode) return deleteNode(name);
+
+  if (verb === "get" && isNamespace) {
+    state.discoveredNode = true;
+
+    return table(
+      ["NAME", "STATUS"],
+      [...new Set(pods.map((pod) => pod.namespace))].map((namespace) => [
+        namespace,
+        "Active",
+      ]),
+    );
+  }
+
+  return [`error: unknown command "${input}"`, "", kubectlUsage()].join("\n");
+}
+
 async function runCommand(command: string): Promise<string> {
   state.commandCount++;
 
@@ -486,7 +885,12 @@ async function runCommand(command: string): Promise<string> {
       "",
       "Platform",
       "  kubectl get pods",
+      "  kubectl get nodes",
       "  kubectl get namespaces",
+      "  kubectl describe pod <name>",
+      "  kubectl describe node <name>",
+      "  kubectl delete pod <name>",
+      "  kubectl delete node <name>",
       "  inspect workload",
       "  inspect node",
       "  inspect isolation",
@@ -625,28 +1029,8 @@ async function runCommand(command: string): Promise<string> {
     return `cat: ${requested}: No such file or directory`;
   }
 
-  if (normalized === "kubectl get pods") {
-    state.discoveredNode = true;
-
-    return [
-      "NAME                         READY   STATUS",
-      "image-processor-a            1/1     Running",
-      "billing-api-b                1/1     Running",
-      "recommendation-c             1/1     Running",
-      "platform-agent               1/1     Running",
-    ].join("\n");
-  }
-
-  if (normalized === "kubectl get namespaces") {
-    state.discoveredNode = true;
-
-    return [
-      "NAME",
-      "customer-a",
-      "customer-b",
-      "customer-c",
-      "platform",
-    ].join("\n");
+  if (normalized === "kubectl" || normalized.startsWith("kubectl ")) {
+    return kubectl(normalized);
   }
 
   if (normalized === "inspect workload") {
@@ -956,10 +1340,29 @@ function renderArchitecture(): string {
   }
 
   const compromised = state.kernelCompromised;
+  const downed = terminatedPods();
+  const nodeDown = nodeIsDown();
+  const breached = compromised || downed.length > 0 || nodeDown;
+
+  const tenantCards = pods
+    .map((pod) => {
+      const dead = pod.status === "Terminated";
+
+      return `<div class="tenant-card ${dead ? "tenant-card-down" : ""}"><span class="tenant-dot"></span><strong>${pod.namespace}</strong><span>${
+        dead ? `${pod.workload} — terminated` : pod.workload
+      }</span></div>`;
+    })
+    .join("");
+
+  const kernelCaption = nodeDown
+    ? "node down — every tenant on it terminated"
+    : compromised
+      ? "compromised — shared dependency exposed"
+      : "shared host kernel";
 
   return `
     <section class="architecture ${
-      compromised ? "architecture-compromised" : ""
+      breached ? "architecture-compromised" : ""
     }">
       <div class="section-heading">
         <div>
@@ -967,56 +1370,45 @@ function renderArchitecture(): string {
           <h2>Shared-kernel workload</h2>
         </div>
         <span class="status-pill ${
-          compromised ? "status-danger" : "status-unknown"
+          breached ? "status-danger" : "status-unknown"
         }">
-          ${compromised ? "BOUNDARY BREACHED" : "UNKNOWN BOUNDARY"}
+          ${breached ? "BOUNDARY BREACHED" : "UNKNOWN BOUNDARY"}
         </span>
       </div>
 
-      <div class="tenant-grid">
-        <div class="tenant-card">
-          <span class="tenant-dot"></span>
-          <strong>customer-a</strong>
-          <span>image-processor</span>
-        </div>
-
-        <div class="tenant-card">
-          <span class="tenant-dot"></span>
-          <strong>customer-b</strong>
-          <span>billing-api</span>
-        </div>
-
-        <div class="tenant-card">
-          <span class="tenant-dot"></span>
-          <strong>customer-c</strong>
-          <span>recommendation</span>
-        </div>
-
-        <div class="tenant-card">
-          <span class="tenant-dot"></span>
-          <strong>platform</strong>
-          <span>platform-agent</span>
-        </div>
-      </div>
+      <div class="tenant-grid">${tenantCards}</div>
 
       <div class="kernel-connector"></div>
 
       <div class="kernel-box ${
-        compromised ? "kernel-compromised" : ""
+        breached ? "kernel-compromised" : ""
       }">
         <strong>LINUX KERNEL</strong>
-        <span>
-          ${
-            compromised
-              ? "compromised — shared dependency exposed"
-              : "shared host kernel"
-          }
-        </span>
+        <span>${kernelCaption}</span>
       </div>
 
       ${
-        compromised
+        downed.length > 0
           ? `
+            <div class="blast-radius">
+              <span class="blast-icon">!</span>
+              <div>
+                <strong>Blast radius: ${downed.length} workload${
+                  downed.length === 1 ? "" : "s"
+                } destroyed</strong>
+                <span>
+                  ${downed
+                    .map((pod) => `${pod.namespace}/${pod.workload}`)
+                    .join(", ")}
+                  ${
+                    downed.length === 1 ? "was" : "were"
+                  } terminated by code running inside customer-a.
+                </span>
+              </div>
+            </div>
+          `
+          : compromised
+            ? `
             <div class="blast-radius">
               <span class="blast-icon">!</span>
               <div>
@@ -1028,7 +1420,7 @@ function renderArchitecture(): string {
               </div>
             </div>
           `
-          : ""
+            : ""
       }
     </section>
   `;
@@ -1422,9 +1814,5 @@ function attachTerminalHandlers(): void {
     nextInput?.focus();
   });
 }
-
-/* -------------------------------------------------------------------------- */
-/* Start                                                                      */
-/* -------------------------------------------------------------------------- */
 
 render();
