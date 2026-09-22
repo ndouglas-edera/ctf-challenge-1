@@ -838,7 +838,7 @@ function describePod(name: string | undefined, flags: KubectlFlags): string {
     `Status:        ${pod.status}`,
     ...labelLines,
     ...annotationLines,
-    `Runtime Class Name:  ${pod.runtimeClass ?? "<none>"}`,
+    `runtimeClassName:  ${pod.runtimeClass ?? "<none>"}`,
     "",
     "Containers:",
     `  ${pod.app}:`,
