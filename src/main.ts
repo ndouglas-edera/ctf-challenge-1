@@ -1251,12 +1251,12 @@ function render(): void {
 
             <p>
               You have shell access to an untrusted customer workload
-              running on Webernetes. Your task is to determine what
+              running on Webernetes. <br/> Your task is to determine what
               actually separates this workload from the rest of the node.
             </p>
 
             <p>
-              Do not assume the container is the final boundary.
+              Do not assume the container is the final boundary. <br/>
               Investigate the execution environment, inspect the kernel,
               measure the blast radius, and compare it with isolated execution.
             </p>
