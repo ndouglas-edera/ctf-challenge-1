@@ -593,7 +593,15 @@ a {
   display: block;
   margin-bottom: 8px;
 
-  white-space: normal;   /* was: pre-wrap */
+  /*
+   * Must stay `normal`. The markup for this element is built from an
+   * indented template literal, so its child spans are separated by a
+   * newline plus the source indentation. `pre-wrap` would render that
+   * as a line break and ~24 leading spaces, pushing the prompt and the
+   * command away from the left edge that the output block sits on.
+   * The command text preserves its own spacing via its own rule below.
+   */
+  white-space: normal;
   word-break: break-word;
 }
 
@@ -973,6 +981,25 @@ a {
 
   color: var(--edera-muted);
   font-size: 8px;
+}
+
+.tenant-card-down {
+  border-color: rgba(255, 115, 115, 0.35);
+  background: rgba(255, 115, 115, 0.07);
+}
+
+.tenant-card-down .tenant-dot {
+  background: #b94444;
+}
+
+.tenant-card-down strong {
+  color: #8f3838;
+  text-decoration: line-through;
+  text-decoration-color: rgba(143, 56, 56, 0.5);
+}
+
+.tenant-card-down span:last-child {
+  color: #b94444;
 }
 
 .kernel-connector {
