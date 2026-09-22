@@ -1,162 +1,367 @@
 import "./style.css";
 
-type GamePhase =
-  | "briefing"
-  | "investigation"
-  | "kernel"
-  | "blast-radius"
-  | "isolation"
-  | "complete";
+/* -------------------------------------------------------------------------- */
+/* Cluster model                                                              */
+/*                                                                            */
+/* Single source of truth for command output and for the architecture         */
+/* diagram, so anything the player discovers is reflected in both.            */
+/* -------------------------------------------------------------------------- */
+
+interface Pod {
+  name: string;
+  namespace: string;
+  app: string;
+  node: string;
+  status: string;
+  privileged: boolean;
+  runtimeClass: string | null;
+  annotations: Record<string, string>;
+  zone: string | null;
+  image: string;
+}
+
+interface Zone {
+  name: string;
+  id: string;
+  state: "ready" | "failed";
+  cpus: number;
+  memory: string;
+  kernel: string;
+  pod: string;
+  failure?: string[];
+}
+
+interface CachedImage {
+  reference: string;
+  digest: string;
+  format: string;
+  size: string;
+}
+
+interface KernelVariant {
+  name: string;
+  image: string;
+  notes: string;
+}
+
+const NODE = {
+  name: "worker-02",
+  status: "Ready",
+  kernelVersion: "6.1.0-edera-host",
+  os: "Edera Protect Host",
+  runtime: "containerd://1.7.13",
+  capacityMemory: "16Gi",
+  allocatableMemory: "14Gi",
+};
+
+const ZONE_KERNEL = "ghcr.io/edera-dev/zone-kernel:6.15";
+const ZONE_KERNEL_EBPF = "ghcr.io/edera-dev/zone-kernel:6.15-ebpf";
+
+const pods: Pod[] = [
+  {
+    name: "image-processor-a",
+    namespace: "customer-a",
+    app: "image-processor",
+    node: NODE.name,
+    status: "Running",
+    privileged: false,
+    runtimeClass: "edera",
+    annotations: {
+      "dev.edera/kernel": ZONE_KERNEL,
+      "dev.edera/initial-memory-request": "2048",
+    },
+    zone: "zone-customer-a",
+    image: "ghcr.io/acme/image-processor:1.4.2",
+  },
+  {
+    name: "billing-api-b",
+    namespace: "customer-b",
+    app: "billing-api",
+    node: NODE.name,
+    status: "Running",
+    privileged: false,
+    runtimeClass: "edera",
+    annotations: {
+      "dev.edera/kernel": ZONE_KERNEL,
+      "dev.edera/initial-memory-request": "2048",
+    },
+    zone: "zone-customer-b",
+    image: "ghcr.io/acme/billing-api:3.0.1",
+  },
+  {
+    name: "edera-ebpf-test",
+    namespace: "platform",
+    app: "ebpf-test",
+    node: NODE.name,
+    status: "Running",
+    privileged: true,
+    runtimeClass: "edera",
+    annotations: {
+      "dev.edera/kernel-variant": "ebpf",
+      "dev.edera/initial-memory-request": "2048",
+    },
+    zone: "zone-ebpf-test",
+    image: "ubuntu:latest",
+  },
+  {
+    name: "analytics-batch-d",
+    namespace: "customer-d",
+    app: "analytics-batch",
+    node: NODE.name,
+    status: "ContainerCreating",
+    privileged: false,
+    runtimeClass: "edera",
+    annotations: {
+      "dev.edera/kernel": ZONE_KERNEL,
+      "dev.edera/initial-memory-request": "24576",
+    },
+    zone: "zone-analytics-d",
+    image: "ghcr.io/acme/analytics-batch:0.9.0",
+  },
+  {
+    /*
+     * The finding. Privileged, and the RuntimeClass was never set, so this
+     * container runs straight on the host kernel with elevated privileges.
+     */
+    name: "recommendation-c",
+    namespace: "customer-c",
+    app: "recommendation",
+    node: NODE.name,
+    status: "Running",
+    privileged: true,
+    runtimeClass: null,
+    annotations: {
+      "dev.edera/initial-memory-request": "2048",
+    },
+    zone: null,
+    image: "ghcr.io/acme/recommendation:2.2.0",
+  },
+];
+
+const zones: Zone[] = [
+  {
+    name: "zone-customer-a",
+    id: "z-7f1a44",
+    state: "ready",
+    cpus: 2,
+    memory: "2048MB",
+    kernel: ZONE_KERNEL,
+    pod: "image-processor-a",
+  },
+  {
+    name: "zone-customer-b",
+    id: "z-2b90c7",
+    state: "ready",
+    cpus: 2,
+    memory: "2048MB",
+    kernel: ZONE_KERNEL,
+    pod: "billing-api-b",
+  },
+  {
+    name: "zone-ebpf-test",
+    id: "z-c53de1",
+    state: "ready",
+    cpus: 2,
+    memory: "2048MB",
+    kernel: ZONE_KERNEL_EBPF,
+    pod: "edera-ebpf-test",
+  },
+  {
+    name: "zone-analytics-d",
+    id: "z-9ea022",
+    state: "failed",
+    cpus: 4,
+    memory: "24576MB",
+    kernel: ZONE_KERNEL,
+    pod: "analytics-batch-d",
+    failure: [
+      "zone create requested 24576MB",
+      "node worker-02 allocatable memory: 14Gi",
+      "insufficient memory to start zone",
+      "",
+      "Reduce dev.edera/initial-memory-request on the pod",
+      "or schedule the workload on a larger node.",
+    ],
+  },
+];
+
+const images: CachedImage[] = [
+  {
+    reference: ZONE_KERNEL,
+    digest:
+      "sha256:8c4f2a91d7e3b06547ac1fe920dd35b8746c0a29e1fb5d3c88ea47612d90bf5a",
+    format: "squashfs",
+    size: "94.2MB",
+  },
+  {
+    reference: ZONE_KERNEL_EBPF,
+    digest:
+      "sha256:3d71e0b4c82a95f16de4470cb1a9d2385fe6c07b41da9e25837fbc60a4e12d7c",
+    format: "squashfs",
+    size: "108.6MB",
+  },
+  {
+    reference: "ubuntu:latest",
+    digest:
+      "sha256:b1e4f0c73a2d58916cf0e27bd4a5390fd62c81ba7e0d3945cfa2610b8d47e93f",
+    format: "squashfs",
+    size: "78.1MB",
+  },
+  {
+    reference: "ghcr.io/acme/image-processor:1.4.2",
+    digest:
+      "sha256:5a0c9f231e6b74d8ac35180fe9b2d764c1a83e05fd7b26943ce81b0a75f3d2e8",
+    format: "squashfs",
+    size: "221.4MB",
+  },
+];
+
+const kernelVariants: KernelVariant[] = [
+  {
+    name: "default",
+    image: ZONE_KERNEL,
+    notes: "standard zone kernel",
+  },
+  {
+    name: "ebpf",
+    image: ZONE_KERNEL_EBPF,
+    notes: "BTF + BPF LSM enabled",
+  },
+  {
+    name: "gpu",
+    image: "ghcr.io/edera-dev/zone-kernel:6.15-gpu",
+    notes: "passthrough drivers",
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/* Stages                                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface Stage {
+  title: string;
+  objective: string;
+  brief: string[];
+  /* Accepted answers, compared lowercase after trimming. */
+  answers: string[];
+  flag: string;
+  reward: string[];
+}
+
+const stages: Stage[] = [
+  {
+    title: "Zone kernel",
+    objective: "Find the zone kernel image pinned to a workload.",
+    brief: [
+      "Every Edera-backed pod pins the kernel it boots in a",
+      "metadata annotation. Read a pod and submit that image.",
+    ],
+    answers: [ZONE_KERNEL],
+    flag: "EDERA{ZONE_KERNEL_6_15}",
+    reward: [
+      "That annotation is the pod asking for a specific kernel.",
+      "Pods without it are not booting a kernel of their own.",
+    ],
+  },
+  {
+    title: "Image digest",
+    objective: "Pin the zone kernel to a digest from the local cache.",
+    brief: [
+      "A tag can move. Find the digest the daemon actually",
+      "cached for that kernel image and submit it.",
+    ],
+    answers: [
+      images[0].digest,
+      images[0].digest.replace("sha256:", ""),
+      images[0].digest.slice(0, 19),
+    ],
+    flag: "EDERA{DIGEST_PINNED}",
+    reward: [
+      "The digest is what the zone really boots.",
+      "Verify zone kernel images against it before you trust a tag.",
+    ],
+  },
+  {
+    title: "Kernel variant",
+    objective: "Identify the kernel variant the eBPF workload requests.",
+    brief: [
+      "One workload needs kernel features the default variant",
+      "does not ship. Name the variant it asks for.",
+    ],
+    answers: ["ebpf", "dev.edera/kernel-variant=ebpf"],
+    flag: "EDERA{EBPF_VARIANT}",
+    reward: [
+      "Variants let a workload get BTF and BPF LSM without",
+      "changing the kernel every other tenant runs.",
+    ],
+  },
+  {
+    title: "Failed zone",
+    objective: "Find the zone that failed to start.",
+    brief: [
+      "One pod is stuck. Filter zones by state and submit the",
+      "name of the zone that never came up.",
+    ],
+    answers: ["zone-analytics-d"],
+    flag: "EDERA{ZONE_FAILED_OOM}",
+    reward: [
+      "A zone that cannot start is loud and visible.",
+      "A workload with no zone at all is silent. Keep counting.",
+    ],
+  },
+  {
+    title: "Missing RuntimeClass",
+    objective: "Find the workload running without a zone.",
+    brief: [
+      "Five pods are scheduled. There are four zones, and one",
+      "of them failed. Name the pod that never asked for one.",
+    ],
+    answers: ["recommendation-c", "customer-c/recommendation-c"],
+    flag: "EDERA{NO_RUNTIME_CLASS}",
+    reward: [
+      "It is privileged and it has no runtimeClassName.",
+      "Nothing rejected it. It simply got the default runtime.",
+    ],
+  },
+  {
+    title: "Shared kernel",
+    objective: "Prove which kernel that workload is running on.",
+    brief: [
+      "Compare the kernel inside a zone with the kernel that pod",
+      "sees. Submit the kernel version it shares with the host.",
+    ],
+    answers: [NODE.kernelVersion, "6.1.0"],
+    flag: "EDERA{PRIVILEGED_WITHOUT_A_ZONE}",
+    reward: [
+      "Same kernel as the node, with privileged set to true.",
+      "There is no boundary left between that container and the host.",
+    ],
+  },
+];
 
 interface GameState {
-  phase: GamePhase;
-
-  discoveredCodeExecution: boolean;
-  discoveredNode: boolean;
-  discoveredSharedKernel: boolean;
-  kernelScanned: boolean;
-  kernelCompromised: boolean;
-  customerBAccessed: boolean;
-  platformAccessed: boolean;
-  isolatedDiscovered: boolean;
-  isolatedTested: boolean;
-  flagSubmitted: boolean;
-
+  stage: number;
+  captured: string[];
   commandCount: number;
+  /* Pods the player has read in detail, used to reveal the diagram. */
+  inspected: Set<string>;
+  zonesListed: boolean;
 }
+
+const state: GameState = {
+  stage: 0,
+  captured: [],
+  commandCount: 0,
+  inspected: new Set<string>(),
+  zonesListed: false,
+};
 
 interface TerminalEntry {
   type: "command" | "output";
   text: string;
 }
 
-const FLAG = "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}";
-
-const state: GameState = {
-  phase: "briefing",
-
-  discoveredCodeExecution: false,
-  discoveredNode: false,
-  discoveredSharedKernel: false,
-  kernelScanned: false,
-  kernelCompromised: false,
-  customerBAccessed: false,
-  platformAccessed: false,
-  isolatedDiscovered: false,
-  isolatedTested: false,
-  flagSubmitted: false,
-
-  commandCount: 0,
-};
-
 const terminalHistory: TerminalEntry[] = [];
-
-/* -------------------------------------------------------------------------- */
-/* Cluster model                                                              */
-/*                                                                            */
-/* This is the single source of truth for both `kubectl` output and the       */
-/* architecture diagram, so a delete in the terminal is reflected below.      */
-/* -------------------------------------------------------------------------- */
-
-type PodStatus = "Running" | "Terminated";
-
-interface Pod {
-  name: string;
-  namespace: string;
-  workload: string;
-  node: string;
-  status: PodStatus;
-  restarts: number;
-}
-
-interface ClusterNode {
-  name: string;
-  status: "Ready" | "NotReady";
-  kernel: string;
-  runtime: string;
-}
-
-const TENANT = "customer-a";
-
-const pods: Pod[] = [
-  {
-    name: "image-processor-a",
-    namespace: "customer-a",
-    workload: "image-processor",
-    node: "worker-02",
-    status: "Running",
-    restarts: 0,
-  },
-  {
-    name: "billing-api-b",
-    namespace: "customer-b",
-    workload: "billing-api",
-    node: "worker-02",
-    status: "Running",
-    restarts: 0,
-  },
-  {
-    name: "recommendation-c",
-    namespace: "customer-c",
-    workload: "recommendation",
-    node: "worker-02",
-    status: "Running",
-    restarts: 0,
-  },
-  {
-    name: "platform-agent",
-    namespace: "platform",
-    workload: "platform-agent",
-    node: "worker-02",
-    status: "Running",
-    restarts: 0,
-  },
-];
-
-const clusterNodes: ClusterNode[] = [
-  {
-    name: "worker-02",
-    status: "Ready",
-    kernel: "acme-kernel-001",
-    runtime: "containerd://1.7.13",
-  },
-];
-
-function findPod(name: string): Pod | undefined {
-  return pods.find((pod) => pod.name === name);
-}
-
-function findNode(name: string): ClusterNode | undefined {
-  return clusterNodes.find((node) => node.name === name);
-}
-
-function nodeIsDown(): boolean {
-  return clusterNodes.some((node) => node.status === "NotReady");
-}
-
-function terminatedPods(): Pod[] {
-  return pods.filter((pod) => pod.status === "Terminated");
-}
-
-/*
- * Builds a left-aligned, column-padded table the way kubectl does, so the
- * output stays aligned as pod names and statuses change at runtime.
- */
-function table(headers: string[], rows: string[][]): string {
-  const widths = headers.map((header, index) =>
-    Math.max(header.length, ...rows.map((row) => row[index].length)),
-  );
-
-  const line = (cells: string[]): string =>
-    cells
-      .map((cell, index) =>
-        index === cells.length - 1 ? cell : cell.padEnd(widths[index] + 3),
-      )
-      .join("")
-      .trimEnd();
-
-  return [line(headers), ...rows.map(line)].join("\n");
-}
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -178,9 +383,7 @@ function escapeHtml(value: string): string {
 }
 
 function terminalText(value: string): string {
-  const escaped = escapeHtml(value);
-
-  return escaped.replace(
+  return escapeHtml(value).replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a class="terminal-link" href="$1" target="_blank" rel="noreferrer">$1</a>',
   );
@@ -191,369 +394,48 @@ function sleep(ms: number): Promise<void> {
 }
 
 function prompt(): string {
-  return "customer-a@image-processor:~$";
+  return "platform@worker-02:~$";
 }
 
-function updatePhase(): void {
-  if (state.flagSubmitted) {
-    state.phase = "complete";
-    return;
-  }
-
-  if (state.isolatedTested) {
-    state.phase = "isolation";
-    return;
-  }
-
-  if (state.kernelCompromised) {
-    state.phase = "blast-radius";
-    return;
-  }
-
-  if (state.kernelScanned || state.discoveredSharedKernel) {
-    state.phase = "kernel";
-    return;
-  }
-
-  if (
-    state.discoveredCodeExecution ||
-    state.discoveredNode
-  ) {
-    state.phase = "investigation";
-    return;
-  }
-
-  state.phase = "briefing";
+function complete(): boolean {
+  return state.stage >= stages.length;
 }
 
-function boundaryLabel(): string {
-  if (state.flagSubmitted) return "VERIFIED";
-  if (state.isolatedTested) return "ISOLATED";
-  if (state.kernelCompromised) return "COMPROMISED";
-  if (state.discoveredSharedKernel) return "SHARED KERNEL";
-  return "UNKNOWN";
+function currentStage(): Stage | null {
+  return complete() ? null : stages[state.stage];
 }
 
-function phaseLabel(): string {
-  switch (state.phase) {
-    case "briefing":
-      return "01 / BRIEFING";
-    case "investigation":
-      return "02 / INVESTIGATION";
-    case "kernel":
-      return "03 / KERNEL";
-    case "blast-radius":
-      return "04 / BLAST RADIUS";
-    case "isolation":
-      return "05 / ISOLATION";
-    case "complete":
-      return "06 / COMPLETE";
-  }
+/*
+ * Column-padded output, matching the table format both kubectl and
+ * `protect --output table` produce.
+ */
+function table(headers: string[], rows: string[][]): string {
+  const widths = headers.map((header, index) =>
+    Math.max(header.length, ...rows.map((row) => row[index].length)),
+  );
+
+  const line = (cells: string[]): string =>
+    cells
+      .map((cell, index) =>
+        index === cells.length - 1 ? cell : cell.padEnd(widths[index] + 3),
+      )
+      .join("")
+      .trimEnd();
+
+  return [line(headers), ...rows.map(line)].join("\n");
 }
 
-function objectiveStatus(index: number): "complete" | "current" | "pending" {
-  const statuses = [
-    state.discoveredCodeExecution,
-    state.discoveredSharedKernel,
-    state.kernelScanned,
-    state.kernelCompromised &&
-      (state.customerBAccessed || state.platformAccessed),
-    state.isolatedTested,
-    state.flagSubmitted,
-  ];
-
-  if (statuses[index]) return "complete";
-
-  const firstIncomplete = statuses.findIndex((item) => !item);
-
-  return firstIncomplete === index ? "current" : "pending";
+function findPod(name: string): Pod | undefined {
+  return pods.find((pod) => pod.name === name);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Virtual filesystem                                                         */
-/* -------------------------------------------------------------------------- */
-
-const virtualFiles: Record<string, string> = {
-  "/.profile": [
-    "# customer-a shell profile",
-    "export TENANT=customer-a",
-    "export WORKLOAD=image-processor",
-    "export NODE=worker-02",
-    "export EXECUTION_MODE=untrusted",
-  ].join("\n"),
-
-  "/workload.yaml": [
-    "apiVersion: workloads.webernetes.dev/v1",
-    "kind: Workload",
-    "metadata:",
-    "  name: image-processor",
-    "  namespace: customer-a",
-    "spec:",
-    "  execution: arbitrary-customer-code",
-    "  trust: untrusted",
-    "  isolation: container",
-  ].join("\n"),
-
-  "/etc/hostname": "image-processor.customer-a",
-
-  "/etc/workload": [
-    "WORKLOAD PROFILE",
-    "----------------",
-    "tenant: customer-a",
-    "application: image-processor",
-    "execution: arbitrary customer processing code",
-    "trust level: untrusted",
-    "",
-    "The workload is intentionally allowed to execute",
-    "customer-supplied code.",
-  ].join("\n"),
-
-  "/etc/security-boundary": [
-    "SECURITY BOUNDARY",
-    "-----------------",
-    "isolation: Linux containers",
-    "process namespaces: enabled",
-    "filesystem isolation: enabled",
-    "network namespace: enabled",
-    "",
-    "WARNING:",
-    "Containers share the host Linux kernel.",
-  ].join("\n"),
-
-  "/etc/node": [
-    "NODE INFORMATION",
-    "----------------",
-    "node: worker-02",
-    "runtime: containerd",
-    "kernel: Linux 6.x",
-    "kernel-id: acme-kernel-001",
-    "",
-    "Multiple customer workloads run on this node.",
-  ].join("\n"),
-
-  "/etc/os-release": [
-    'NAME="Webernetes Linux"',
-    'VERSION="6.x"',
-    'ID=webernetes',
-    "VARIANT=worker",
-  ].join("\n"),
-
-  "/host/etc/node-config": [
-    "NODE CONFIGURATION",
-    "------------------",
-    "node: worker-02",
-    "runtime: containerd",
-    "orchestrator: webernetes",
-    "kernel: acme-kernel-001",
-    "tenant-isolation: container",
-    "",
-    "NOTE:",
-    "This path represents a host-visible configuration",
-    "surface exposed after the simulated kernel escape.",
-  ].join("\n"),
-
-  "/host/var/lib/containers/tenant-map": [
-    "CONTAINER TENANT MAP",
-    "--------------------",
-    "customer-a  -> image-processor-a",
-    "customer-b  -> billing-api-b",
-    "customer-c  -> recommendation-c",
-    "platform    -> platform-agent",
-    "",
-    "All workloads resolve to worker-02.",
-  ].join("\n"),
-
-  "/opt/diagnostics/check-boundary.sh": [
-    "#!/bin/sh",
-    "",
-    'echo "Checking workload isolation..."',
-    'echo "namespace: container"',
-    'echo "kernel: shared"',
-    'echo "host kernel boundary: yes"',
-    "",
-    "# The script is intentionally readable.",
-    "# It documents the architecture rather than",
-    "# enforcing the boundary itself.",
-  ].join("\n"),
-
-  "/proc/version": [
-    "Linux version 6.x-webernetes",
-    "(builder@worker-02)",
-    "#1 SMP PREEMPT_DYNAMIC",
-    "kernel-id=acme-kernel-001",
-  ].join(" "),
-
-  "/proc/1/status": [
-    "Name:\timage-processor",
-    "Pid:\t1",
-    "PPid:\t0",
-    "Uid:\t1000\t1000\t1000\t1000",
-    "Gid:\t1000\t1000\t1000\t1000",
-    "Threads:\t4",
-    "CapEff:\t00000000a80425fb",
-  ].join("\n"),
-
-  "/proc/1/cgroup": [
-    "0::/kubepods/customer-a/image-processor",
-    "",
-    "container cgroup:",
-    "customer-a/image-processor",
-  ].join("\n"),
-
-  "/sys/kernel/security-boundary": [
-    "KERNEL SECURITY BOUNDARY",
-    "------------------------",
-    "host kernel: shared",
-    "kernel-id: acme-kernel-001",
-    "container namespaces: enabled",
-    "hardware isolation: none",
-    "",
-    "The kernel is shared by workloads on worker-02.",
-  ].join("\n"),
-
-  "/app/worker.py": [
-    "import os",
-    "",
-    'print("starting image processor")',
-    'print("tenant:", os.environ.get("TENANT"))',
-    "",
-    "# Customer-supplied processing logic runs here.",
-    "# The application is intentionally untrusted.",
-  ].join("\n"),
-
-  "/app/image-processor": [
-    "#!/bin/sh",
-    "exec python /app/worker.py",
-  ].join("\n"),
-};
-
-const directories = new Set([
-  "/",
-  "/app",
-  "/bin",
-  "/etc",
-  "/host",
-  "/host/etc",
-  "/host/var",
-  "/host/var/lib",
-  "/host/var/lib/containers",
-  "/opt",
-  "/opt/diagnostics",
-  "/proc",
-  "/proc/1",
-  "/sys",
-  "/sys/kernel",
-  "/tmp",
-]);
-
-function normalizePath(input: string): string {
-  if (!input) return "/";
-
-  const parts = input.split("/").filter(Boolean);
-  const resolved: string[] = [];
-
-  for (const part of parts) {
-    if (part === ".") continue;
-
-    if (part === "..") {
-      resolved.pop();
-    } else {
-      resolved.push(part);
-    }
-  }
-
-  return `/${resolved.join("/")}`;
+function findZone(name: string): Zone | undefined {
+  return zones.find((zone) => zone.name === name);
 }
 
-function pathExists(path: string): boolean {
-  return directories.has(path) || path in virtualFiles;
+function notFound(kind: string, name: string): string {
+  return `Error from server (NotFound): ${kind} "${name}" not found`;
 }
-
-function listDirectory(path: string): string {
-  const normalized = normalizePath(path);
-
-  if (!directories.has(normalized)) {
-    return `ls: cannot access '${path}': No such file or directory`;
-  }
-
-  const prefix = normalized === "/" ? "/" : `${normalized}/`;
-
-  const children = new Set<string>();
-
-  for (const directory of directories) {
-    if (!directory.startsWith(prefix) || directory === normalized) {
-      continue;
-    }
-
-    const remainder = directory.slice(prefix.length);
-
-    if (!remainder || remainder.includes("/")) {
-      continue;
-    }
-
-    children.add(`${remainder}/`);
-  }
-
-  for (const file of Object.keys(virtualFiles)) {
-    if (!file.startsWith(prefix)) {
-      continue;
-    }
-
-    const remainder = file.slice(prefix.length);
-
-    if (!remainder || remainder.includes("/")) {
-      continue;
-    }
-
-    children.add(remainder);
-  }
-
-  return [...children].sort().join("  ");
-}
-
-function treeOutput(): string {
-  return [
-    ".",
-    "├── app",
-    "│   ├── image-processor",
-    "│   └── worker.py",
-    "├── bin",
-    "│   ├── cat",
-    "│   ├── ps",
-    "│   └── sh",
-    "├── etc",
-    "│   ├── hostname",
-    "│   ├── node",
-    "│   ├── os-release",
-    "│   ├── security-boundary",
-    "│   └── workload",
-    "├── host",
-    "│   ├── etc",
-    "│   │   └── node-config",
-    "│   └── var",
-    "│       └── lib",
-    "│           └── containers",
-    "│               └── tenant-map",
-    "├── opt",
-    "│   └── diagnostics",
-    "│       └── check-boundary.sh",
-    "├── proc",
-    "│   ├── 1",
-    "│   │   ├── cgroup",
-    "│   │   └── status",
-    "│   └── version",
-    "├── sys",
-    "│   └── kernel",
-    "│       └── security-boundary",
-    "├── tmp",
-    "├── .profile",
-    "└── workload.yaml",
-  ].join("\n");
-}
-
-/* -------------------------------------------------------------------------- */
-/* Command engine                                                             */
-/* -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- */
 /* kubectl                                                                    */
@@ -561,75 +443,45 @@ function treeOutput(): string {
 
 function kubectlUsage(): string {
   return [
-    "usage: kubectl <verb> <resource> [name]",
+    "usage: kubectl <verb> <resource> [name] [flags]",
     "",
-    "  kubectl get pods",
-    "  kubectl get nodes",
-    "  kubectl get namespaces",
+    "  kubectl get pods [-o wide]",
+    "  kubectl get pod <name> -o yaml",
     "  kubectl describe pod <name>",
+    "  kubectl get nodes",
     "  kubectl describe node <name>",
-    "  kubectl delete pod <name>",
-    "  kubectl delete node <name>",
+    "  kubectl get runtimeclass",
   ].join("\n");
 }
 
-/*
- * Writes outside customer-a are refused by the platform API until the kernel
- * is compromised. That is the whole lesson: the API was enforcing the
- * boundary, the kernel underneath was not.
- */
-function writeDenied(resource: string, namespace: string | null): string {
-  if (state.isolatedTested || state.flagSubmitted) {
-    return [
-      "Error from server (Forbidden):",
-      `${resource} is forbidden.`,
-      "",
-      "The workload now runs in a dedicated execution zone.",
-      "Kernel access no longer crosses the zone boundary.",
-    ].join("\n");
+function getPods(wide: boolean): string {
+  if (!wide) {
+    return table(
+      ["NAMESPACE", "NAME", "READY", "STATUS"],
+      pods.map((pod) => [
+        pod.namespace,
+        pod.name,
+        pod.status === "Running" ? "1/1" : "0/1",
+        pod.status,
+      ]),
+    );
   }
 
   return [
-    "Error from server (Forbidden):",
-    `${resource} is forbidden:`,
-    namespace
-      ? `User "${TENANT}" cannot delete resource in namespace "${namespace}".`
-      : `User "${TENANT}" cannot delete cluster-scoped resource.`,
+    table(
+      ["NAMESPACE", "NAME", "READY", "STATUS", "RESTARTS", "IP", "NODE"],
+      pods.map((pod, index) => [
+        pod.namespace,
+        pod.name,
+        pod.status === "Running" ? "1/1" : "0/1",
+        pod.status,
+        "0",
+        `10.244.1.${21 + index}`,
+        pod.node,
+      ]),
+    ),
     "",
-    "The platform API enforces this boundary.",
-    "The kernel underneath does not.",
-  ].join("\n");
-}
-
-function getPods(): string {
-  state.discoveredNode = true;
-
-  const rows = pods.map((pod) => [
-    pod.name,
-    pod.status === "Running" ? "1/1" : "0/1",
-    pod.status,
-    String(pod.restarts),
-    pod.node,
-  ]);
-
-  return table(["NAME", "READY", "STATUS", "RESTARTS", "NODE"], rows);
-}
-
-function getNodes(): string {
-  state.discoveredNode = true;
-  state.discoveredSharedKernel = true;
-
-  const rows = clusterNodes.map((node) => [
-    node.name,
-    node.status,
-    "worker",
-    node.kernel,
-  ]);
-
-  return [
-    table(["NAME", "STATUS", "ROLES", "KERNEL"], rows),
-    "",
-    "Every pod on this node runs on the kernel listed above.",
+    "Every pod above is scheduled on the same node.",
   ].join("\n");
 }
 
@@ -641,33 +493,78 @@ function describePod(name: string | undefined): string {
   const pod = findPod(name);
 
   if (!pod) {
-    return `Error from server (NotFound): pods "${name}" not found`;
+    return notFound("pods", name);
   }
 
-  const node = findNode(pod.node);
+  state.inspected.add(pod.name);
 
-  state.discoveredNode = true;
-  state.discoveredSharedKernel = true;
+  const annotationLines = Object.entries(pod.annotations).map(
+    ([key, value], index) =>
+      index === 0
+        ? `Annotations:   ${key}: ${value}`
+        : `               ${key}: ${value}`,
+  );
 
   return [
     `Name:          ${pod.name}`,
     `Namespace:     ${pod.namespace}`,
     `Node:          ${pod.node}`,
     `Status:        ${pod.status}`,
-    `Restarts:      ${pod.restarts}`,
+    ...annotationLines,
+    `Runtime Class Name:  ${pod.runtimeClass ?? "<none>"}`,
     "",
     "Containers:",
-    `  ${pod.workload}:`,
-    "    Trust:       untrusted customer code",
-    "    Isolation:   Linux namespaces + cgroups",
-    `    Runtime:     ${node?.runtime ?? "unknown"}`,
-    `    Kernel:      ${node?.kernel ?? "unknown"} (shared)`,
+    `  ${pod.app}:`,
+    `    Image:       ${pod.image}`,
+    `    Privileged:  ${pod.privileged}`,
     "",
-    "Notes:",
-    "  The container boundary is enforced by the kernel",
-    "  named above. That kernel is shared with every other",
-    `  pod scheduled on ${pod.node}.`,
+    "Events:",
+    pod.status === "Running"
+      ? "  Normal  Started  container started"
+      : "  Warning  FailedCreatePodSandbox  zone did not become ready",
   ].join("\n");
+}
+
+function getPodYaml(name: string | undefined): string {
+  if (!name) {
+    return "error: resource name may not be empty";
+  }
+
+  const pod = findPod(name);
+
+  if (!pod) {
+    return notFound("pods", name);
+  }
+
+  state.inspected.add(pod.name);
+
+  return [
+    "apiVersion: v1",
+    "kind: Pod",
+    "metadata:",
+    `  name: ${pod.name}`,
+    `  namespace: ${pod.namespace}`,
+    "  annotations:",
+    ...Object.entries(pod.annotations).map(
+      ([key, value]) => `    ${key}: ${JSON.stringify(value)}`,
+    ),
+    "spec:",
+    ...(pod.runtimeClass ? [`  runtimeClassName: ${pod.runtimeClass}`] : []),
+    "  containers:",
+    `  - name: ${pod.app}`,
+    `    image: ${pod.image}`,
+    "    securityContext:",
+    `      privileged: ${pod.privileged}`,
+    "status:",
+    `  phase: ${pod.status}`,
+  ].join("\n");
+}
+
+function getNodes(): string {
+  return table(
+    ["NAME", "STATUS", "ROLES", "VERSION"],
+    [[NODE.name, NODE.status, "worker", "v1.31.4"]],
+  );
 }
 
 function describeNode(name: string | undefined): string {
@@ -675,147 +572,55 @@ function describeNode(name: string | undefined): string {
     return "error: resource name may not be empty";
   }
 
-  const node = findNode(name);
-
-  if (!node) {
-    return `Error from server (NotFound): nodes "${name}" not found`;
+  if (name !== NODE.name) {
+    return notFound("nodes", name);
   }
 
-  state.discoveredNode = true;
-  state.discoveredSharedKernel = true;
-
-  const scheduled = pods.filter((pod) => pod.node === node.name);
+  const scheduled = pods.filter((pod) => pod.node === NODE.name);
 
   return [
-    `Name:          ${node.name}`,
-    `Status:        ${node.status}`,
-    `Kernel:        ${node.kernel}`,
-    `Runtime:       ${node.runtime}`,
+    `Name:               ${NODE.name}`,
     "",
-    "Non-terminated pods:",
+    "System Info:",
+    `  Kernel Version:             ${NODE.kernelVersion}`,
+    `  OS Image:                   ${NODE.os}`,
+    `  Container Runtime Version:  ${NODE.runtime}`,
+    "",
+    "Capacity:",
+    `  memory:  ${NODE.capacityMemory}`,
+    "Allocatable:",
+    `  memory:  ${NODE.allocatableMemory}`,
+    "",
+    "Non-terminated Pods:",
     table(
-      ["NAMESPACE", "NAME", "STATUS"],
-      scheduled.map((pod) => [pod.namespace, pod.name, pod.status]),
+      ["NAMESPACE", "NAME", "MEMORY REQUESTS"],
+      scheduled.map((pod) => [
+        pod.namespace,
+        pod.name,
+        `${pod.annotations["dev.edera/initial-memory-request"] ?? "0"}Mi`,
+      ]),
     )
       .split("\n")
       .map((line) => `  ${line}`)
       .join("\n"),
-    "",
-    "All of the above share a single kernel.",
-    "There is no boundary between them below the container layer.",
   ].join("\n");
 }
 
-function deletePod(name: string | undefined): string {
-  if (!name) {
-    return "error: resource name may not be empty";
-  }
-
-  const pod = findPod(name);
-
-  if (!pod || pod.status === "Terminated") {
-    return `Error from server (NotFound): pods "${name}" not found`;
-  }
-
-  if (pod.namespace !== TENANT && !state.kernelCompromised) {
-    return writeDenied(`pods "${pod.name}"`, pod.namespace);
-  }
-
-  if (pod.namespace !== TENANT && (state.isolatedTested || state.flagSubmitted)) {
-    return writeDenied(`pods "${pod.name}"`, pod.namespace);
-  }
-
-  /*
-   * customer-a owns this workload, so the platform honours the delete and the
-   * controller immediately reschedules it. No blast radius, no diagram change.
-   */
-  if (pod.namespace === TENANT) {
-    pod.restarts++;
-
-    return [
-      `pod "${pod.name}" deleted`,
-      "",
-      "The workload controller rescheduled it immediately.",
-      `restarts: ${pod.restarts}`,
-      "",
-      "Deleting your own workload proves nothing about the boundary.",
-    ].join("\n");
-  }
-
-  pod.status = "Terminated";
-
-  if (pod.namespace === "customer-b") {
-    state.customerBAccessed = true;
-  }
-
-  if (pod.namespace === "platform") {
-    state.platformAccessed = true;
-  }
-
+function getRuntimeClass(): string {
   return [
-    `pod "${pod.name}" deleted`,
+    table(
+      ["NAME", "HANDLER", "AGE"],
+      [["edera", "edera", "41d"]],
+    ),
     "",
-    "CROSS-TENANT IMPACT",
-    "-------------------",
-    `namespace: ${pod.namespace}`,
-    `workload: ${pod.workload}`,
-    "",
-    "This delete did not go through the platform API.",
-    "It was issued with kernel-level control of the node.",
-    "",
-    "A neighbouring tenant's workload was destroyed by code",
-    "running inside customer-a.",
-  ].join("\n");
-}
-
-function deleteNode(name: string | undefined): string {
-  if (!name) {
-    return "error: resource name may not be empty";
-  }
-
-  const node = findNode(name);
-
-  if (!node) {
-    return `Error from server (NotFound): nodes "${name}" not found`;
-  }
-
-  if (!state.kernelCompromised || state.isolatedTested || state.flagSubmitted) {
-    return writeDenied(`nodes "${node.name}"`, null);
-  }
-
-  if (node.status === "NotReady") {
-    return `node "${node.name}" is already NotReady`;
-  }
-
-  node.status = "NotReady";
-
-  const casualties = pods.filter(
-    (pod) => pod.node === node.name && pod.status === "Running",
-  );
-
-  casualties.forEach((pod) => {
-    pod.status = "Terminated";
-  });
-
-  state.customerBAccessed = true;
-  state.platformAccessed = true;
-
-  return [
-    `node "${node.name}" deleted`,
-    "",
-    "FULL NODE COMPROMISE",
-    "--------------------",
-    ...casualties.map((pod) => `[+] terminated ${pod.namespace}/${pod.workload}`),
-    "",
-    "Every tenant on this node is gone.",
-    "",
-    "They were never isolated from each other.",
-    "They were sharing the kernel that was just taken.",
+    "The edera RuntimeClass is installed and available to every namespace.",
   ].join("\n");
 }
 
 function kubectl(input: string): string {
-  const [verb, resource, name] = input.split(/\s+/).slice(1);
+  const args = input.split(/\s+/).slice(1);
+  const [verb, resource, name] = args;
+  const flags = args.slice(1);
 
   if (!verb) {
     return kubectlUsage();
@@ -823,29 +628,376 @@ function kubectl(input: string): string {
 
   const isPod = ["pod", "pods", "po"].includes(resource ?? "");
   const isNode = ["node", "nodes", "no"].includes(resource ?? "");
-  const isNamespace = ["namespace", "namespaces", "ns"].includes(resource ?? "");
+  const isRuntimeClass = ["runtimeclass", "runtimeclasses", "rc"].includes(
+    resource ?? "",
+  );
 
-  if (verb === "get" && isPod) return getPods();
-  if (verb === "get" && isNode) return getNodes();
-  if (verb === "describe" && isPod) return describePod(name);
-  if (verb === "describe" && isNode) return describeNode(name);
-  if (verb === "delete" && isPod) return deletePod(name);
-  if (verb === "delete" && isNode) return deleteNode(name);
+  const wants = (...tokens: string[]): boolean =>
+    flags.some((flag) => tokens.includes(flag));
 
-  if (verb === "get" && isNamespace) {
-    state.discoveredNode = true;
+  if (verb === "get" && isPod) {
+    if (wants("yaml") || input.includes("-o yaml")) {
+      return getPodYaml(name && !name.startsWith("-") ? name : undefined);
+    }
 
-    return table(
-      ["NAME", "STATUS"],
-      [...new Set(pods.map((pod) => pod.namespace))].map((namespace) => [
-        namespace,
-        "Active",
-      ]),
-    );
+    return getPods(wants("wide") || input.includes("-o wide"));
   }
+
+  if (verb === "get" && isNode) return getNodes();
+  if (verb === "get" && isRuntimeClass) return getRuntimeClass();
+
+  if (verb === "describe" && isPod) return describePod(name);
+  if (verb === "describe" && isNode) return describeNode(name ?? NODE.name);
 
   return [`error: unknown command "${input}"`, "", kubectlUsage()].join("\n");
 }
+
+/* -------------------------------------------------------------------------- */
+/* protect                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function protectUsage(): string {
+  return [
+    "usage: protect <command> [subcommand] [options]",
+    "",
+    "  protect zone list [--selector status.state=<state>]",
+    "  protect zone list <name> --output json-pretty",
+    "  protect zone logs <name>",
+    "  protect image list [--output table]",
+    "  protect image list-kernel-variants",
+    "  protect workload list",
+    "  protect workload exec <name> <command>",
+    "  protect host status",
+  ].join("\n");
+}
+
+function zoneList(input: string, name: string | undefined): string {
+  state.zonesListed = true;
+
+  const selector = /--selector\s+status\.state=(\w+)/.exec(input);
+  const wantsJson = input.includes("json");
+
+  let visible = zones;
+
+  if (name && !name.startsWith("-")) {
+    const zone = findZone(name);
+
+    if (!zone) {
+      return `error: zone "${name}" not found`;
+    }
+
+    visible = [zone];
+  }
+
+  if (selector) {
+    visible = visible.filter((zone) => zone.state === selector[1]);
+  }
+
+  if (visible.length === 0) {
+    return "No zones matched the selector.";
+  }
+
+  if (wantsJson) {
+    return JSON.stringify(
+      {
+        zones: visible.map((zone) => ({
+          name: zone.name,
+          id: zone.id,
+          state: zone.state,
+          kernel: zone.kernel,
+          resources: { cpus: zone.cpus, memory: zone.memory },
+          workload: zone.pod,
+        })),
+      },
+      null,
+      2,
+    );
+  }
+
+  return [
+    table(
+      ["NAME", "ID", "STATE", "CPUS", "MEMORY"],
+      visible.map((zone) => [
+        zone.name,
+        zone.id,
+        zone.state,
+        String(zone.cpus),
+        zone.memory,
+      ]),
+    ),
+    "",
+    `${visible.length} zone${visible.length === 1 ? "" : "s"} listed. ` +
+      `${pods.length} pods are scheduled on this node.`,
+  ].join("\n");
+}
+
+function zoneLogs(name: string | undefined): string {
+  if (!name) {
+    return "error: zone name may not be empty";
+  }
+
+  const zone = findZone(name);
+
+  if (!zone) {
+    return `error: zone "${name}" not found`;
+  }
+
+  if (zone.state === "ready") {
+    return [
+      `[zone ${zone.name}] booting ${zone.kernel}`,
+      `[zone ${zone.name}] ${zone.cpus} vcpu, ${zone.memory}`,
+      `[zone ${zone.name}] zone ready`,
+    ].join("\n");
+  }
+
+  return [
+    `[zone ${zone.name}] requesting ${zone.memory}`,
+    ...(zone.failure ?? []).map((line) =>
+      line ? `[zone ${zone.name}] ${line}` : "",
+    ),
+    `[zone ${zone.name}] state: failed`,
+  ].join("\n");
+}
+
+function imageList(input: string): string {
+  if (input.includes("json")) {
+    return JSON.stringify({ images }, null, 2);
+  }
+
+  return table(
+    ["REFERENCE", "DIGEST", "FORMAT", "SIZE"],
+    images.map((image) => [
+      image.reference,
+      image.digest,
+      image.format,
+      image.size,
+    ]),
+  );
+}
+
+function listKernelVariants(): string {
+  return [
+    table(
+      ["VARIANT", "IMAGE", "NOTES"],
+      kernelVariants.map((variant) => [
+        variant.name,
+        variant.image,
+        variant.notes,
+      ]),
+    ),
+    "",
+    "Request a variant with the dev.edera/kernel-variant pod annotation.",
+  ].join("\n");
+}
+
+function workloadList(): string {
+  const running = zones
+    .filter((zone) => zone.state === "ready")
+    .map((zone) => {
+      const pod = findPod(zone.pod);
+
+      return [zone.pod, zone.name, "running", pod?.image ?? "unknown"];
+    });
+
+  return [
+    table(["NAME", "ZONE", "STATE", "IMAGE"], running),
+    "",
+    "Workloads are only visible here when they run inside a zone.",
+  ].join("\n");
+}
+
+function workloadExec(name: string | undefined, rest: string): string {
+  if (!name) {
+    return "error: workload name may not be empty";
+  }
+
+  const pod = findPod(name);
+
+  if (!pod) {
+    return `error: workload "${name}" not found`;
+  }
+
+  if (!pod.zone) {
+    return [
+      `error: workload "${name}" is not managed by the Edera daemon`,
+      "",
+      "It has no zone, so there is nothing for protect to exec into.",
+      "Use kubectl exec for containers on the default runtime.",
+    ].join("\n");
+  }
+
+  const zone = findZone(pod.zone);
+
+  if (zone?.state !== "ready") {
+    return `error: zone "${pod.zone}" is not ready`;
+  }
+
+  const wantsKernel = /proc\/version|uname/.test(rest);
+
+  if (!wantsKernel) {
+    return [
+      `[${pod.name}] command executed in ${zone.name}`,
+      "",
+      "Try reading /proc/version to see which kernel this workload booted.",
+    ].join("\n");
+  }
+
+  const version = zone.kernel.split(":")[1] ?? "6.15";
+
+  return [
+    `Linux version ${version}-edera-zone (zone@${zone.name})`,
+    "",
+    `This workload booted its own kernel from ${zone.kernel}.`,
+    `The node itself is running ${NODE.kernelVersion}.`,
+  ].join("\n");
+}
+
+function kubectlExec(name: string | undefined, rest: string): string {
+  if (!name) {
+    return "error: pod name may not be empty";
+  }
+
+  const pod = findPod(name);
+
+  if (!pod) {
+    return notFound("pods", name);
+  }
+
+  const wantsKernel = /proc\/version|uname/.test(rest);
+
+  if (!wantsKernel) {
+    return `[${pod.name}] command executed`;
+  }
+
+  if (pod.zone) {
+    const zone = findZone(pod.zone);
+    const version = zone?.kernel.split(":")[1] ?? "6.15";
+
+    return `Linux version ${version}-edera-zone (zone@${pod.zone})`;
+  }
+
+  return [
+    `Linux version ${NODE.kernelVersion} (build@${NODE.name})`,
+    "",
+    `That is the node's own kernel. ${pod.name} did not boot one.`,
+    "It is sharing the host kernel, with privileged set to true.",
+  ].join("\n");
+}
+
+function hostStatus(): string {
+  return [
+    "daemon:    running",
+    `node:      ${NODE.name}`,
+    `kernel:    ${NODE.kernelVersion}`,
+    `zones:     ${zones.filter((zone) => zone.state === "ready").length} ready, ${
+      zones.filter((zone) => zone.state === "failed").length
+    } failed`,
+    `workloads: ${pods.length} pods scheduled`,
+  ].join("\n");
+}
+
+function protectCli(input: string): string {
+  const args = input.split(/\s+/).slice(1);
+  const [command, subcommand, name] = args;
+
+  if (!command) {
+    return protectUsage();
+  }
+
+  if (command === "zone") {
+    if (subcommand === "list") return zoneList(input, name);
+    if (subcommand === "logs") return zoneLogs(name);
+  }
+
+  if (command === "image") {
+    if (subcommand === "list") return imageList(input);
+    if (subcommand === "list-kernel-variants") return listKernelVariants();
+  }
+
+  if (command === "workload") {
+    if (subcommand === "list") return workloadList();
+    if (subcommand === "exec") return workloadExec(name, input);
+  }
+
+  if (command === "host" && subcommand === "status") return hostStatus();
+
+  return [`error: unknown command "${input}"`, "", protectUsage()].join("\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Submission                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function submit(value: string): string {
+  const stage = currentStage();
+
+  if (!stage) {
+    return "All flags captured. There is nothing left to submit.";
+  }
+
+  const answer = value.trim().toLowerCase().replace(/^["']|["']$/g, "");
+
+  if (!answer) {
+    return "usage: submit <value>";
+  }
+
+  const matched = stage.answers.some(
+    (candidate) => candidate.toLowerCase() === answer,
+  );
+
+  if (!matched) {
+    /* A correct answer for a stage already passed is a useful nudge. */
+    const earlier = stages
+      .slice(0, state.stage)
+      .some((past) =>
+        past.answers.some((candidate) => candidate.toLowerCase() === answer),
+      );
+
+    if (earlier) {
+      return [
+        "Already captured.",
+        "",
+        `Current objective: ${stage.objective}`,
+      ].join("\n");
+    }
+
+    return [
+      "Rejected.",
+      "",
+      `Objective ${String(state.stage + 1).padStart(2, "0")}: ${stage.objective}`,
+      ...stage.brief.map((line) => `  ${line}`),
+    ].join("\n");
+  }
+
+  state.captured.push(stage.flag);
+  state.stage++;
+
+  const next = currentStage();
+
+  return [
+    "FLAG CAPTURED",
+    "-------------",
+    stage.flag,
+    "",
+    ...stage.reward,
+    "",
+    next
+      ? `Objective ${String(state.stage + 1).padStart(2, "0")}: ${next.objective}`
+      : [
+          "All six flags captured.",
+          "",
+          "A privileged container with no runtimeClassName was the finding.",
+          "The RuntimeClass existed. Nothing enforced its use.",
+          "",
+          "Your reward is waiting for you:",
+          "https://edera.dev/love",
+        ].join("\n"),
+  ].join("\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Command dispatch                                                           */
+/* -------------------------------------------------------------------------- */
 
 async function runCommand(command: string): Promise<string> {
   state.commandCount++;
@@ -865,422 +1017,81 @@ async function runCommand(command: string): Promise<string> {
       "EDERA / ISOLATION RESEARCH LAB",
       "THE BOUNDARY / SECURITY CHALLENGE 01",
       "",
-      "Shell",
-      "  pwd",
-      "  ls",
-      "  ls -la",
-      "  tree",
-      "  tree /",
-      "  cat <file>",
-      "  ps",
-      "  env",
-      "  whoami",
-      "  hostname",
-      "",
-      "Workload",
-      "  cat /etc/workload",
-      "  cat /etc/security-boundary",
-      "  cat /etc/node",
-      "  cat /app/worker.py",
-      "",
-      "Platform",
-      "  kubectl get pods",
-      "  kubectl get nodes",
-      "  kubectl get namespaces",
+      "Kubernetes",
+      "  kubectl get pods [-o wide]",
+      "  kubectl get pod <name> -o yaml",
       "  kubectl describe pod <name>",
-      "  kubectl describe node <name>",
-      "  kubectl delete pod <name>",
-      "  kubectl delete node <name>",
-      "  inspect workload",
-      "  inspect node",
-      "  inspect isolation",
+      "  kubectl get nodes",
+      "  kubectl describe node worker-02",
+      "  kubectl get runtimeclass",
+      "  kubectl exec <pod> -- <command>",
       "",
-      "Investigation",
-      "  scan kernel",
-      "  exploit kernel",
-      "  list tenants",
-      "  access customer-b",
-      "  access platform",
-      "  verify isolation",
-      "  inspect isolated",
-      "  exploit isolated",
-      "  access isolated-neighbor",
+      "Edera Protect",
+      "  protect host status",
+      "  protect zone list [--selector status.state=failed]",
+      "  protect zone list <name> --output json-pretty",
+      "  protect zone logs <name>",
+      "  protect image list [--output table]",
+      "  protect image list-kernel-variants",
+      "  protect workload list",
+      "  protect workload exec <name> <command>",
       "",
-      "Submission",
-      "  submit <flag>",
+      "Lab",
+      "  objective        show the current objective",
+      "  flags            show captured flags",
+      "  submit <value>   capture the current flag",
     ].join("\n");
   }
 
-  if (normalized === "pwd") {
-    return "/home/customer";
-  }
+  if (normalized === "objective" || normalized === "status") {
+    const stage = currentStage();
 
-  if (normalized === "whoami") {
-    state.discoveredCodeExecution = true;
-
-    return [
-      "uid=1000(customer-a)",
-      "groups=customer,workload",
-      "",
-      "Role: untrusted customer workload",
-    ].join("\n");
-  }
-
-  if (normalized === "hostname") {
-    state.discoveredCodeExecution = true;
-    return "image-processor.customer-a";
-  }
-
-  if (normalized === "env") {
-    state.discoveredCodeExecution = true;
-
-    return [
-      "WORKLOAD=customer-a/image-processor",
-      "TENANT=customer-a",
-      "EXECUTION_MODE=untrusted",
-      "PLATFORM=webernetes",
-      "NODE=worker-02",
-    ].join("\n");
-  }
-
-  if (normalized === "ps") {
-    state.discoveredCodeExecution = true;
-
-    return [
-      "PID   USER       COMMAND",
-      "1     customer   /app/image-processor",
-      "27    customer   python worker.py",
-      "41    customer   /bin/sh",
-    ].join("\n");
-  }
-
-  if (normalized === "ls" || normalized === "ls -la") {
-    state.discoveredCodeExecution = true;
-
-    if (normalized === "ls") {
-      return ".profile  workload.yaml";
+    if (!stage) {
+      return "All six flags captured. The investigation is complete.";
     }
 
     return [
-      "total 28",
-      "drwxr-xr-x  1 customer customer 4096 .",
-      "drwxr-xr-x  1 root     root     4096 ..",
-      "-rw-r--r--  1 customer customer  412 .profile",
-      "-rw-r--r--  1 customer customer  186 workload.yaml",
+      `Objective ${String(state.stage + 1).padStart(2, "0")} of ${stages.length}: ${stage.title}`,
+      "",
+      stage.objective,
+      ...stage.brief.map((line) => `  ${line}`),
     ].join("\n");
   }
 
-  if (normalized === "tree" || normalized === "tree /") {
-    state.discoveredCodeExecution = true;
-    return treeOutput();
+  if (normalized === "flags") {
+    if (state.captured.length === 0) {
+      return "No flags captured yet. Run 'objective' to see what to look for.";
+    }
+
+    return ["CAPTURED FLAGS", "--------------", ...state.captured].join("\n");
   }
 
-  if (normalized.startsWith("cat ")) {
-    const requested = raw.slice(4).trim();
+  if (normalized === "clear") {
+    terminalHistory.length = 0;
+    return "";
+  }
 
-    const aliases: Record<string, string> = {
-      "workload.yaml": "/workload.yaml",
-      "/etc/hostname": "/etc/hostname",
-      "/etc/workload": "/etc/workload",
-      "/etc/security-boundary": "/etc/security-boundary",
-      "/etc/node": "/etc/node",
-      "/host/etc/node-config": "/host/etc/node-config",
-      "/host/var/lib/containers/tenant-map":
-        "/host/var/lib/containers/tenant-map",
-      "/proc/version": "/proc/version",
-      "/proc/1/status": "/proc/1/status",
-      "/proc/1/cgroup": "/proc/1/cgroup",
-      "/sys/kernel/security-boundary":
-        "/sys/kernel/security-boundary",
-      "/opt/diagnostics/check-boundary.sh":
-        "/opt/diagnostics/check-boundary.sh",
-      "/app/worker.py": "/app/worker.py",
-      "/app/image-processor": "/app/image-processor",
-    };
-
-    const path = aliases[requested] ?? normalizePath(requested);
-
-    if (path in virtualFiles) {
-      if (
-        path === "/etc/workload" ||
-        path === "/workload.yaml" ||
-        path === "/app/worker.py"
-      ) {
-        state.discoveredCodeExecution = true;
-      }
-
-      if (
-        path === "/etc/security-boundary" ||
-        path === "/etc/node" ||
-        path === "/sys/kernel/security-boundary" ||
-        path === "/proc/version"
-      ) {
-        state.discoveredSharedKernel = true;
-        state.discoveredNode = true;
-      }
-
-      return virtualFiles[path];
-    }
-
-    if (pathExists(path)) {
-      return `cat: ${requested}: Is a directory`;
-    }
-
-    return `cat: ${requested}: No such file or directory`;
+  if (normalized.startsWith("submit")) {
+    return submit(raw.slice(6));
   }
 
   if (normalized === "kubectl" || normalized.startsWith("kubectl ")) {
+    const parts = raw.split(/\s+/);
+
+    if (parts[1] === "exec") {
+      const separator = raw.indexOf("--");
+
+      return kubectlExec(
+        parts[2],
+        separator === -1 ? raw : raw.slice(separator + 2),
+      );
+    }
+
     return kubectl(normalized);
   }
 
-  if (normalized === "inspect workload") {
-    state.discoveredCodeExecution = true;
-
-    return [
-      "WORKLOAD INSPECTION",
-      "-------------------",
-      "tenant: customer-a",
-      "name: image-processor",
-      "execution: arbitrary customer processing code",
-      "container boundary: Linux namespaces + cgroups",
-      "kernel: shared",
-    ].join("\n");
-  }
-
-  if (normalized === "inspect node") {
-    state.discoveredNode = true;
-    state.discoveredSharedKernel = true;
-
-    return [
-      "NODE INSPECTION",
-      "---------------",
-      "worker-02",
-      "",
-      "Workloads:",
-      "  customer-a/image-processor",
-      "  customer-b/billing-api",
-      "  customer-c/recommendation",
-      "  platform/platform-agent",
-      "",
-      "All workloads use the same Linux kernel.",
-    ].join("\n");
-  }
-
-  if (normalized === "inspect isolation") {
-    state.discoveredSharedKernel = true;
-    state.isolatedDiscovered = true;
-
-    return [
-      "ISOLATION INSPECTION",
-      "--------------------",
-      "Current workload:",
-      "  Linux container",
-      "  shared host kernel",
-      "",
-      "Alternative workload:",
-      "  isolated workload",
-      "  dedicated execution zone",
-      "  zone kernel",
-      "  hardware-enforced boundary",
-    ].join("\n");
-  }
-
-  if (normalized === "scan kernel") {
-    state.discoveredSharedKernel = true;
-    state.kernelScanned = true;
-
-    return [
-      "KERNEL SECURITY SCAN",
-      "--------------------",
-      "kernel-id: acme-kernel-001",
-      "status: vulnerable",
-      "",
-      "Finding: CVE-like finding",
-      "impact: potential kernel compromise from privileged",
-      "or kernel-exploiting workload code.",
-      "",
-      "The container boundary depends on this kernel.",
-    ].join("\n");
-  }
-
-  if (normalized === "exploit kernel") {
-    state.kernelScanned = true;
-    state.kernelCompromised = true;
-
-    return [
-      "EXPLOIT ATTEMPT",
-      "---------------",
-      "Executing simulated kernel exploit...",
-      "",
-      "[+] vulnerability triggered",
-      "[+] privilege boundary crossed",
-      "[+] kernel compromised",
-      "",
-      "KERNEL COMPROMISED",
-      "",
-      "The attacker is no longer confined to the",
-      "customer-a process namespace.",
-    ].join("\n");
-  }
-
-  if (normalized === "list tenants") {
-    if (!state.kernelCompromised) {
-      return [
-        "ACCESS DENIED",
-        "",
-        "The tenant map is not available from the",
-        "current workload boundary.",
-      ].join("\n");
-    }
-
-    return [
-      "VISIBLE TENANTS AFTER KERNEL COMPROMISE",
-      "-----------------------------------------",
-      "customer-a",
-      "customer-b",
-      "customer-c",
-      "platform",
-    ].join("\n");
-  }
-
-  if (normalized === "access customer-b") {
-    if (!state.kernelCompromised) {
-      return [
-        "ACCESS DENIED",
-        "",
-        "customer-b is outside the current container.",
-        "Investigate the kernel boundary first.",
-      ].join("\n");
-    }
-
-    state.customerBAccessed = true;
-
-    return [
-      "ACCESS ATTEMPT: customer-b",
-      "---------------------------",
-      "[+] locating billing-api-b",
-      "[+] crossing container boundary",
-      "[+] customer-b filesystem reachable",
-      "",
-      "customer-b access confirmed.",
-    ].join("\n");
-  }
-
-  if (normalized === "access platform") {
-    if (!state.kernelCompromised) {
-      return [
-        "ACCESS DENIED",
-        "",
-        "platform resources are outside the current",
-        "container boundary.",
-      ].join("\n");
-    }
-
-    state.platformAccessed = true;
-
-    return [
-      "ACCESS ATTEMPT: platform",
-      "------------------------",
-      "[+] locating platform-agent",
-      "[+] platform resources visible",
-      "",
-      "platform access confirmed.",
-    ].join("\n");
-  }
-
-  if (normalized === "verify isolation") {
-    state.isolatedDiscovered = true;
-
-    return [
-      "ISOLATION VERIFICATION",
-      "----------------------",
-      "isolated workload: customer-c/ai-agent",
-      "execution zone: isolated-zone-01",
-      "zone kernel: dedicated",
-      "boundary: hardware-enforced",
-      "",
-      "Cross-zone kernel access: blocked",
-    ].join("\n");
-  }
-
-  if (normalized === "inspect isolated") {
-    state.isolatedDiscovered = true;
-
-    return [
-      "ISOLATED WORKLOAD",
-      "------------------",
-      "workload: customer-c/ai-agent",
-      "execution: isolated workload",
-      "kernel: zone kernel",
-      "host kernel sharing: none",
-      "boundary: hardware-enforced",
-    ].join("\n");
-  }
-
-  if (normalized === "exploit isolated") {
-    state.isolatedTested = true;
-
-    return [
-      "EXPLOIT ATTEMPT",
-      "---------------",
-      "Executing the same simulated exploit...",
-      "",
-      "[+] code execution achieved",
-      "[+] workload compromised",
-      "[-] host kernel unavailable",
-      "[-] neighboring workload unavailable",
-      "",
-      "COMPROMISE CONTAINED.",
-    ].join("\n");
-  }
-
-  if (normalized === "access isolated-neighbor") {
-    state.isolatedTested = true;
-
-    return [
-      "ACCESS ATTEMPT: isolated-neighbor",
-      "---------------------------------",
-      "[-] neighbor is outside the execution zone",
-      "[-] shared kernel path does not exist",
-      "",
-      "ACCESS DENIED.",
-      "",
-      "The isolation boundary holds.",
-    ].join("\n");
-  }
-
-  if (normalized.startsWith("submit ")) {
-    const submittedFlag = raw.slice(7).trim();
-
-    if (submittedFlag === FLAG) {
-      state.flagSubmitted = true;
-
-      return [
-        "FLAG VALID.",
-        "",
-        "ACCESS GRANTED.",
-        "",
-        "Investigation complete.",
-        "The kernel was the boundary.",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "CONGRATULATIONS, SECURITY RESEARCHER.",
-        "",
-        "You've completed THE BOUNDARY.",
-        "",
-        "Your reward is waiting for you:",
-        "https://edera.dev/love",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      ].join("\n");
-    }
-
-    return [
-      "FLAG REJECTED.",
-      "",
-      "The submitted finding is incorrect.",
-    ].join("\n");
+  if (normalized === "protect" || normalized.startsWith("protect ")) {
+    return protectCli(normalized);
   }
 
   return [
@@ -1294,173 +1105,110 @@ async function runCommand(command: string): Promise<string> {
 /* UI                                                                         */
 /* -------------------------------------------------------------------------- */
 
-function renderArchitecture(): string {
-  if (state.flagSubmitted || state.isolatedTested) {
-    return `
-      <section class="architecture architecture-isolated">
-        <div class="section-heading">
-          <div>
-            <span class="eyebrow">CURRENT ARCHITECTURE</span>
-            <h2>Isolated execution zone</h2>
-          </div>
-          <span class="status-pill status-safe">BOUNDARY VERIFIED</span>
-        </div>
-
-        <div class="arch-zone-grid">
-          <div class="arch-zone">
-            <div class="arch-zone-number">01</div>
-            <div>
-              <strong>Customer workload</strong>
-              <span>untrusted code</span>
-            </div>
-          </div>
-
-          <div class="arch-zone-arrow">↓</div>
-
-          <div class="arch-zone safe-zone">
-            <div class="arch-zone-number">02</div>
-            <div>
-              <strong>Isolated execution zone</strong>
-              <span>dedicated zone kernel</span>
-            </div>
-          </div>
-
-          <div class="arch-zone-arrow">↓</div>
-
-          <div class="arch-zone">
-            <div class="arch-zone-number">03</div>
-            <div>
-              <strong>Hardware boundary</strong>
-              <span>cross-zone kernel access blocked</span>
-            </div>
-          </div>
-        </div>
-      </section>
-    `;
+/*
+ * Reading a pod resolves it outright. Listing zones only resolves the pods
+ * that HAVE a zone — a pod missing from that list stays unknown, because its
+ * absence is the clue the player is supposed to spot for themselves.
+ */
+function podLayer(pod: Pod): "zone" | "host" | "unknown" {
+  if (state.inspected.has(pod.name)) {
+    return pod.runtimeClass && pod.zone ? "zone" : "host";
   }
 
-  const compromised = state.kernelCompromised;
-  const downed = terminatedPods();
-  const nodeDown = nodeIsDown();
-  const breached = compromised || downed.length > 0 || nodeDown;
+  if (state.zonesListed && pod.zone) return "zone";
 
-  const tenantCards = pods
+  return "unknown";
+}
+
+function renderArchitecture(): string {
+  const exposed = pods.filter((pod) => podLayer(pod) === "host");
+  const found = exposed.length > 0;
+
+  const cards = pods
     .map((pod) => {
-      const dead = pod.status === "Terminated";
+      const layer = podLayer(pod);
+      const zone = pod.zone ? findZone(pod.zone) : undefined;
 
-      return `<div class="tenant-card ${dead ? "tenant-card-down" : ""}"><span class="tenant-dot"></span><strong>${pod.namespace}</strong><span>${
-        dead ? `${pod.workload} — terminated` : pod.workload
-      }</span></div>`;
+      const caption =
+        layer === "unknown"
+          ? "runtime not yet inspected"
+          : layer === "zone"
+            ? `${zone?.name} · ${zone?.state}`
+            : "no zone · host kernel";
+
+      return `<div class="tenant-card layer-${layer}"><span class="tenant-dot"></span><strong>${pod.namespace}/${pod.app}</strong><span>${caption}</span></div>`;
     })
     .join("");
 
-  const kernelCaption = nodeDown
-    ? "node down — every tenant on it terminated"
-    : compromised
-      ? "compromised — shared dependency exposed"
-      : "shared host kernel";
-
   return `
-    <section class="architecture ${
-      breached ? "architecture-compromised" : ""
-    }">
+    <section class="architecture ${found ? "architecture-compromised" : ""}">
       <div class="section-heading">
         <div>
           <span class="eyebrow">CURRENT ARCHITECTURE</span>
-          <h2>Shared-kernel workload</h2>
+          <h2>Mixed-runtime node</h2>
         </div>
         <span class="status-pill ${
-          breached ? "status-danger" : "status-unknown"
+          found ? "status-danger" : "status-unknown"
         }">
-          ${breached ? "BOUNDARY BREACHED" : "UNKNOWN BOUNDARY"}
+          ${found ? "UNPROTECTED WORKLOAD" : "RUNTIME UNKNOWN"}
         </span>
       </div>
 
-      <div class="tenant-grid">${tenantCards}</div>
+      <div class="tenant-grid">${cards}</div>
 
       <div class="kernel-connector"></div>
 
-      <div class="kernel-box ${
-        breached ? "kernel-compromised" : ""
-      }">
-        <strong>LINUX KERNEL</strong>
-        <span>${kernelCaption}</span>
+      <div class="kernel-box ${found ? "kernel-compromised" : ""}">
+        <strong>HOST KERNEL</strong>
+        <span>${NODE.kernelVersion} · ${NODE.name}</span>
       </div>
 
       ${
-        downed.length > 0
+        found
           ? `
             <div class="blast-radius">
               <span class="blast-icon">!</span>
               <div>
-                <strong>Blast radius: ${downed.length} workload${
-                  downed.length === 1 ? "" : "s"
-                } destroyed</strong>
+                <strong>${exposed
+                  .map((pod) => `${pod.namespace}/${pod.app}`)
+                  .join(", ")} has no zone</strong>
                 <span>
-                  ${downed
-                    .map((pod) => `${pod.namespace}/${pod.workload}`)
-                    .join(", ")}
-                  ${
-                    downed.length === 1 ? "was" : "were"
-                  } terminated by code running inside customer-a.
+                  It runs directly on the host kernel shown above, with
+                  privileged access, alongside every zone-backed tenant.
                 </span>
               </div>
             </div>
           `
-          : compromised
-            ? `
-            <div class="blast-radius">
-              <span class="blast-icon">!</span>
-              <div>
-                <strong>Blast radius expanded</strong>
-                <span>
-                  customer-b, customer-c, and platform workloads
-                  now share the compromised kernel boundary.
-                </span>
-              </div>
-            </div>
-          `
-            : ""
+          : ""
       }
     </section>
   `;
 }
 
 function renderObjectives(): string {
-  const objectives = [
-    "Find untrusted code",
-    "Identify execution boundary",
-    "Investigate kernel",
-    "Measure blast radius",
-    "Test isolated execution",
-    "Submit finding",
-  ];
-
   return `
     <section class="card objectives-card">
       <div class="card-heading">
-        <span class="eyebrow">INVESTIGATION</span>
-        <!--<h3>Objectives</h3>-->
+        <span class="eyebrow">OBJECTIVES</span>
       </div>
 
       <div class="objectives">
-        ${objectives
-          .map((objective, index) => {
-            const status = objectiveStatus(index);
+        ${stages
+          .map((stage, index) => {
+            const status =
+              index < state.stage
+                ? "complete"
+                : index === state.stage
+                  ? "current"
+                  : "pending";
 
             return `
               <div class="objective ${status}">
                 <span class="objective-marker">
-                  ${
-                    status === "complete"
-                      ? "✓"
-                      : status === "current"
-                        ? "→"
-                        : "·"
-                  }
+                  ${status === "complete" ? "✓" : status === "current" ? "→" : "·"}
                 </span>
 
-                <span>${objective}</span>
+                <span>${stage.title}</span>
               </div>
             `;
           })
@@ -1470,49 +1218,28 @@ function renderObjectives(): string {
   `;
 }
 
-function renderBoundaryModel(): string {
+function renderFlags(): string {
   return `
     <section class="card boundary-card">
       <div class="card-heading">
-        <span class="eyebrow">BOUNDARY MODEL</span>
+        <span class="eyebrow">CAPTURED FLAGS</span>
       </div>
 
-      <div class="boundary-steps">
-        <div class="boundary-step">
-          <span class="step-number">01</span>
-          <div>
-            <strong>Workload</strong>
-            <span>customer-supplied code</span>
-          </div>
-        </div>
-
-        <div class="boundary-line"></div>
-
-        <div class="boundary-step">
-          <span class="step-number">02</span>
-          <div>
-            <strong>Container</strong>
-            <span>namespaces + cgroups</span>
-          </div>
-        </div>
-
-        <div class="boundary-line"></div>
-
-        <div class="boundary-step ${
-          state.discoveredSharedKernel ? "revealed" : ""
-        }">
-          <span class="step-number">03</span>
-          <div>
-            <strong>Linux kernel</strong>
-            <span>
-              ${
-                state.discoveredSharedKernel
-                  ? "shared host kernel"
-                  : "boundary not yet established"
-              }
-            </span>
-          </div>
-        </div>
+      <div class="flag-list">
+        ${
+          state.captured.length === 0
+            ? `<div class="flag-empty">Run 'objective' in the terminal to start.</div>`
+            : state.captured
+                .map(
+                  (flag, index) => `
+                    <div class="flag-row">
+                      <span class="step-number">${String(index + 1).padStart(2, "0")}</span>
+                      <code>${escapeHtml(flag)}</code>
+                    </div>
+                  `,
+                )
+                .join("")
+        }
       </div>
     </section>
   `;
@@ -1555,40 +1282,34 @@ function renderTerminal(): string {
                 <div class="terminal-rule"></div>
 
                 <div class="terminal-welcome-copy">
-                  You have shell access to a customer workload.
+                  You are auditing a node that runs a mix of zone-backed
+                  and default-runtime workloads.
                   <br />
-                  Explore the environment and determine where
-                  the security boundary actually exists.
+                  Six flags. Each one is a value you read out of a real
+                  command. Capture them in order.
                 </div>
 
                 <div class="terminal-rule"></div>
 
                 <div class="terminal-hint">
-                  Type <span>help</span> for available commands.
+                  Type <span>help</span> for commands, or
+                  <span>objective</span> to begin.
                 </div>
               </div>
             `
             : terminalHistory
-                .map((entry) => {
-                  if (entry.type === "command") {
-                    return `
+                .map((entry) =>
+                  entry.type === "command"
+                    ? `
                       <div class="terminal-command-line">
-                        <span class="terminal-prompt">${escapeHtml(
-                          prompt(),
-                        )}</span>
-                        <span class="terminal-command-text">${escapeHtml(
-                          entry.text,
-                        )}</span>
+                        <span class="terminal-prompt">${escapeHtml(prompt())}</span>
+                        <span class="terminal-command-text">${escapeHtml(entry.text)}</span>
                       </div>
-                    `;
-                  }
-
-                  return `
-                    <pre class="terminal-output-block">${terminalText(
-                      entry.text,
-                    )}</pre>
-                  `;
-                })
+                    `
+                    : `
+                      <pre class="terminal-output-block">${terminalText(entry.text)}</pre>
+                    `,
+                )
                 .join("")
         }
       </div>
@@ -1611,7 +1332,7 @@ function renderTerminal(): string {
 }
 
 function render(): void {
-  updatePhase();
+  const stage = currentStage();
 
   app.innerHTML = `
     <div class="game">
@@ -1621,10 +1342,7 @@ function render(): void {
           <div class="brand-subtitle">ISOLATION RESEARCH LAB</div>
         </div>
 
-        <div class="challenge-lockup">
-          <!--<span>SECURITY CHALLENGE 01</span>-->
-          <!--<strong>THE BOUNDARY</strong>-->
-        </div>
+        <div class="challenge-lockup"></div>
 
         <div class="online-status">
           <span></span>
@@ -1642,32 +1360,32 @@ function render(): void {
             </h1>
 
             <p>
-              You have shell access to an untrusted customer workload
-              running on Webernetes. <br/> Your task is to determine what
-              actually separates this workload from the rest of the node.
+              You have audit access to a Kubernetes node running Edera Protect.
+              <br/> Some workloads on it boot their own kernel. At least one
+              does not.
             </p>
 
             <p>
-              Do not assume the container is the final boundary.
-              Investigate the execution environment, inspect the kernel,
-              measure the blast radius, and compare it with isolated execution.
+              Work through the cluster with kubectl and the protect CLI.
+              Each objective asks for a value that only appears in real command
+              output. Submit it to capture the flag and unlock the next step.
             </p>
           </div>
 
           <div class="mission-meta">
             <div>
               <span>ENVIRONMENT</span>
-              <strong>WEBERNETES</strong>
+              <strong>EDERA PROTECT</strong>
             </div>
 
             <div>
-              <span>WORKLOAD</span>
-              <strong>CUSTOMER-A / IMAGE-PROCESSOR</strong>
+              <span>NODE</span>
+              <strong>WORKER-02</strong>
             </div>
 
             <div>
-              <span>PHASE</span>
-              <strong>${phaseLabel()}</strong>
+              <span>FLAGS</span>
+              <strong>${state.captured.length} / ${stages.length}</strong>
             </div>
           </div>
         </section>
@@ -1676,26 +1394,23 @@ function render(): void {
           <div>
             <span>CURRENT OBJECTIVE</span>
             <strong>
-              ${
-                state.flagSubmitted
-                  ? "Investigation complete. Collect your reward."
-                  : objectiveStatus(0) === "current"
-                    ? "Establish what the workload is allowed to execute."
-                    : state.isolatedTested
-                      ? "Compare the isolation boundary."
-                      : "Continue the investigation."
-              }
+              ${stage ? stage.objective : "Investigation complete. Collect your reward."}
             </strong>
           </div>
 
           <div class="objective-progress">
-            ${[1, 2, 3, 4, 5, 6]
-              .map((number) => {
-                const status = objectiveStatus(number - 1);
+            ${stages
+              .map((_, index) => {
+                const status =
+                  index < state.stage
+                    ? "complete"
+                    : index === state.stage
+                      ? "current"
+                      : "pending";
 
                 return `
                   <span class="progress-dot ${status}">
-                    ${String(number).padStart(2, "0")}
+                    ${String(index + 1).padStart(2, "0")}
                   </span>
                 `;
               })
@@ -1713,34 +1428,34 @@ function render(): void {
                 <span class="status-light"></span>
               </div>
 
-              <!--<h3>${phaseLabel().split(" / ")[1]}</h3>-->
-
               <div class="status-stat">
                 <span>COMMANDS</span>
                 <strong>${state.commandCount}</strong>
               </div>
 
               <div class="status-stat">
-                <span>BOUNDARY</span>
-                <strong>${boundaryLabel()}</strong>
+                <span>FLAGS</span>
+                <strong>${state.captured.length} / ${stages.length}</strong>
               </div>
             </section>
 
             ${renderObjectives()}
-            ${renderBoundaryModel()}
+            ${renderFlags()}
           </aside>
         </section>
 
         ${renderArchitecture()}
 
         ${
-          state.flagSubmitted
+          complete()
             ? `
               <section class="completion-card">
                 <span class="eyebrow">INVESTIGATION COMPLETE</span>
-                <h2>The boundary has been verified.</h2>
+                <h2>A RuntimeClass nobody enforced.</h2>
                 <p>
-                  The kernel was the boundary. Your reward is waiting at
+                  customer-c/recommendation ran privileged on the host kernel
+                  because one field was missing from its spec. Your reward is
+                  waiting at
                   <a
                     href="https://edera.dev/love"
                     target="_blank"
@@ -1764,18 +1479,11 @@ function render(): void {
 }
 
 function attachTerminalHandlers(): void {
-  const form =
-    document.querySelector<HTMLFormElement>("#terminal-form");
+  const form = document.querySelector<HTMLFormElement>("#terminal-form");
+  const input = document.querySelector<HTMLInputElement>("#terminal-input");
+  const output = document.querySelector<HTMLDivElement>("#terminal-output");
 
-  const input =
-    document.querySelector<HTMLInputElement>("#terminal-input");
-
-  const output =
-    document.querySelector<HTMLDivElement>("#terminal-output");
-
-  if (!form || !input || !output) {
-    return;
-  }
+  if (!form || !input || !output) return;
 
   requestAnimationFrame(() => {
     output.scrollTop = output.scrollHeight;
@@ -1794,24 +1502,18 @@ function attachTerminalHandlers(): void {
 
     input.disabled = true;
 
-    terminalHistory.push({
-      type: "command",
-      text: command,
-    });
+    terminalHistory.push({ type: "command", text: command });
+    render();
+
+    const result = await runCommand(command);
+
+    if (result) {
+      terminalHistory.push({ type: "output", text: result });
+    }
 
     render();
 
-    terminalHistory.push({
-      type: "output",
-      text: await runCommand(command),
-    });
-
-    render();
-
-    const nextInput =
-      document.querySelector<HTMLInputElement>("#terminal-input");
-
-    nextInput?.focus();
+    document.querySelector<HTMLInputElement>("#terminal-input")?.focus();
   });
 }
 
