@@ -402,7 +402,7 @@ function prompt(): string {
         ? `~${state.cwd.slice(home.length)}`
         : state.cwd;
 
-  return `platform@worker-02:${path}$`;
+  return `root@worker-02:${path}$`;
 }
 
 function complete(): boolean {
