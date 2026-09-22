@@ -983,23 +983,63 @@ a {
   font-size: 8px;
 }
 
-.tenant-card-down {
+/*
+ * Runtime state of each workload card. `unknown` until the player has read
+ * the pod or listed zones; then it resolves to zone-backed or host-shared.
+ */
+.tenant-card.layer-unknown {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.tenant-card.layer-zone {
+  border-color: rgba(0, 90, 87, 0.3);
+  background: rgba(0, 229, 212, 0.07);
+}
+
+.tenant-card.layer-zone .tenant-dot {
+  background: var(--edera-teal);
+}
+
+.tenant-card.layer-host {
   border-color: rgba(255, 115, 115, 0.35);
   background: rgba(255, 115, 115, 0.07);
 }
 
-.tenant-card-down .tenant-dot {
+.tenant-card.layer-host .tenant-dot {
   background: #b94444;
 }
 
-.tenant-card-down strong {
+.tenant-card.layer-host strong {
   color: #8f3838;
-  text-decoration: line-through;
-  text-decoration-color: rgba(143, 56, 56, 0.5);
 }
 
-.tenant-card-down span:last-child {
+.tenant-card.layer-host span:last-child {
   color: #b94444;
+}
+
+.flag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.flag-empty {
+  color: var(--edera-muted);
+  font: 9px / 1.5 var(--font-mono);
+}
+
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flag-row code {
+  overflow-wrap: anywhere;
+
+  color: var(--edera-teal);
+  font: 9px / 1.4 var(--font-mono);
 }
 
 .kernel-connector {
