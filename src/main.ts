@@ -30,8 +30,8 @@ interface GameState {
 }
 
 interface TerminalEntry {
+  type: "command" | "output" | "success" | "error";
   text: string;
-  className: string;
 }
 
 interface VirtualFile {
@@ -40,9 +40,10 @@ interface VirtualFile {
   owner: string;
   group: string;
   mode: string;
-  executable?: boolean;
   content?: string;
 }
+
+const FLAG = "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}";
 
 const state: GameState = {
   phase: "briefing",
@@ -65,11 +66,9 @@ const state: GameState = {
 
 const terminalHistory: TerminalEntry[] = [];
 
-const FLAG = "EDERA{THE_KERNEL_WAS_THE_BOUNDARY}";
-
-// -----------------------------------------------------------------------------
-// Virtual filesystem
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Virtual filesystem                                                         */
+/* -------------------------------------------------------------------------- */
 
 const CUSTOMER_FILES: VirtualFile[] = [
   {
@@ -79,6 +78,7 @@ const CUSTOMER_FILES: VirtualFile[] = [
     group: "root",
     mode: "drwxr-xr-x",
   },
+
   ...[
     "/app",
     "/bin",
@@ -141,7 +141,6 @@ const CUSTOMER_FILES: VirtualFile[] = [
     owner: "customer",
     group: "customer",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
       "",
@@ -167,36 +166,6 @@ const CUSTOMER_FILES: VirtualFile[] = [
       "def process(image):",
       "    return image",
     ].join("\n"),
-  },
-
-  {
-    path: "/bin/sh",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    executable: true,
-    content: "#!/bin/sh",
-  },
-
-  {
-    path: "/bin/cat",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    executable: true,
-    content: "#!/bin/sh",
-  },
-
-  {
-    path: "/bin/ps",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    executable: true,
-    content: "#!/bin/sh",
   },
 
   {
@@ -275,15 +244,6 @@ const CUSTOMER_FILES: VirtualFile[] = [
   },
 
   {
-    path: "/proc/hostname",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: "worker-02",
-  },
-
-  {
     path: "/proc/1/status",
     kind: "file",
     owner: "root",
@@ -304,48 +264,7 @@ const CUSTOMER_FILES: VirtualFile[] = [
     owner: "root",
     group: "root",
     mode: "-r--r--r--",
-    content: [
-      "0::/kubepods.slice/customer-a/image-processor",
-      "",
-      "Container namespace:",
-      "customer-a/image-processor",
-    ].join("\n"),
-  },
-
-  {
-    path: "/proc/self/cgroup",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
     content: "0::/kubepods.slice/customer-a/image-processor",
-  },
-
-  {
-    path: "/proc/cpuinfo",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "processor\t: 0",
-      "vendor_id\t: GenuineVirtual",
-      "model name\t: Edera Virtual CPU",
-      "cpu cores\t: 4",
-    ].join("\n"),
-  },
-
-  {
-    path: "/proc/meminfo",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-r--r--r--",
-    content: [
-      "MemTotal:       8388608 kB",
-      "MemFree:        4217088 kB",
-      "MemAvailable:   5632000 kB",
-    ].join("\n"),
   },
 
   {
@@ -354,7 +273,6 @@ const CUSTOMER_FILES: VirtualFile[] = [
     owner: "root",
     group: "root",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
       "cat /etc/node",
@@ -368,33 +286,11 @@ const CUSTOMER_FILES: VirtualFile[] = [
     owner: "root",
     group: "root",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
-      "",
-      "echo '=== SECURITY BOUNDARY ==='",
       "cat /etc/security-boundary",
-      "",
-      "echo '=== NODE ==='",
       "cat /etc/node",
-      "",
-      "echo '=== WORKLOADS ==='",
       "kubectl get pods",
-    ].join("\n"),
-  },
-
-  {
-    path: "/opt/diagnostics/kernel-check",
-    kind: "file",
-    owner: "root",
-    group: "root",
-    mode: "-rwxr-xr-x",
-    executable: true,
-    content: [
-      "#!/bin/sh",
-      "echo 'Kernel diagnostic'",
-      "uname -a",
-      "cat /proc/version",
     ].join("\n"),
   },
 
@@ -404,7 +300,6 @@ const CUSTOMER_FILES: VirtualFile[] = [
     owner: "root",
     group: "root",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
       "kubectl get namespaces",
@@ -535,9 +430,7 @@ const ISOLATED_FILES: VirtualFile[] = [
     "/home/customer/app",
     "/home/customer/scripts",
     "/proc",
-    "/opt",
     "/tmp",
-    "/var",
   ].map((path) => ({
     path,
     kind: "directory" as const,
@@ -601,7 +494,6 @@ const ISOLATED_FILES: VirtualFile[] = [
     owner: "customer",
     group: "customer",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
       "",
@@ -618,7 +510,6 @@ const ISOLATED_FILES: VirtualFile[] = [
     owner: "customer",
     group: "customer",
     mode: "-rwxr-xr-x",
-    executable: true,
     content: [
       "#!/bin/sh",
       "cat /etc/security-boundary",
@@ -637,9 +528,9 @@ const ISOLATED_FILES: VirtualFile[] = [
   },
 ];
 
-// -----------------------------------------------------------------------------
-// Filesystem helpers
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Filesystem helpers                                                         */
+/* -------------------------------------------------------------------------- */
 
 function activeFilesystem(): VirtualFile[] {
   if (state.environment === "isolated-zone") {
@@ -672,27 +563,27 @@ function normalizePath(input: string, base = state.cwd): string {
     path = `${base}/${path}`;
   }
 
-  const normalized: string[] = [];
+  const parts: string[] = [];
 
   for (const part of path.split("/")) {
-    if (!part || part === ".") {
-      continue;
-    }
+    if (!part || part === ".") continue;
 
     if (part === "..") {
-      normalized.pop();
+      parts.pop();
       continue;
     }
 
-    normalized.push(part);
+    parts.push(part);
   }
 
-  return `/${normalized.join("/")}` || "/";
+  return `/${parts.join("/")}` || "/";
 }
 
 function getFile(path: string): VirtualFile | undefined {
+  const normalized = normalizePath(path);
+
   return activeFilesystem().find(
-    (file) => file.path === normalizePath(path),
+    (file) => file.path === normalized,
   );
 }
 
@@ -700,17 +591,11 @@ function directoryExists(path: string): boolean {
   return getFile(path)?.kind === "directory";
 }
 
-function fileExists(path: string): boolean {
-  return Boolean(getFile(path));
-}
-
 function directoryEntries(path: string): VirtualFile[] {
   const normalized = normalizePath(path);
 
   return activeFilesystem().filter((file) => {
-    if (file.path === normalized) {
-      return false;
-    }
+    if (file.path === normalized) return false;
 
     const parent =
       file.path.slice(0, file.path.lastIndexOf("/")) || "/";
@@ -719,18 +604,8 @@ function directoryEntries(path: string): VirtualFile[] {
   });
 }
 
-function relativeName(path: string, parent: string): string {
-  if (parent === "/") {
-    return path.slice(1);
-  }
-
-  return path.slice(parent.length + 1);
-}
-
 function displayPath(path: string): string {
-  if (path === "/home/customer") {
-    return "~";
-  }
+  if (path === "/home/customer") return "~";
 
   if (path.startsWith("/home/customer/")) {
     return `~/${path.slice("/home/customer/".length)}`;
@@ -739,9 +614,9 @@ function displayPath(path: string): string {
   return path;
 }
 
-// -----------------------------------------------------------------------------
-// Terminal helpers
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Terminal helpers                                                           */
+/* -------------------------------------------------------------------------- */
 
 function escapeHtml(value: string): string {
   return value
@@ -761,81 +636,89 @@ function promptText(): string {
 }
 
 function addHistory(
+  type: TerminalEntry["type"],
   text: string,
-  className = "terminal-response",
 ): void {
-  terminalHistory.push({
-    text,
-    className,
-  });
+  terminalHistory.push({ type, text });
 }
 
-function addCommandHistory(command: string): void {
-  terminalHistory.push({
-    text: `${promptText()} ${command}`,
-    className: "terminal-command",
-  });
+function addCommand(command: string): void {
+  addHistory("command", `${promptText()} ${command}`);
 }
 
-function renderWelcome(): string {
-  return `
-    <div class="terminal-welcome">
-      <div class="terminal-brand-mark">EDERA</div>
-
-      <div class="terminal-system">
-        ISOLATION RESEARCH LAB
-      </div>
-
-      <div class="terminal-muted">
-        THE BOUNDARY / SECURITY CHALLENGE 01
-      </div>
-
-      <div class="terminal-divider"></div>
-
-      <div>
-        You have shell access to a customer workload.
-      </div>
-
-      <div>
-        Explore the environment and determine where the
-        security boundary actually exists.
-      </div>
-
-      <div class="terminal-divider"></div>
-
-      <div class="terminal-muted">
-        Type <span class="command-highlight">help</span>
-        for available commands.
-      </div>
-    </div>
-  `;
-}
-
-function renderHistory(): string {
+function renderTerminalHistory(): string {
   if (terminalHistory.length === 0) {
-    return renderWelcome();
+    return `
+      <div class="terminal-welcome">
+        <div class="terminal-welcome-brand">EDERA</div>
+        <div class="terminal-welcome-title">
+          ISOLATION RESEARCH LAB
+        </div>
+        <div class="terminal-welcome-subtitle">
+          THE BOUNDARY / SECURITY CHALLENGE 01
+        </div>
+
+        <div class="terminal-rule"></div>
+
+        <p>
+          You have shell access to a customer workload.
+        </p>
+
+        <p>
+          Explore the environment and determine where the
+          security boundary actually exists.
+        </p>
+
+        <div class="terminal-rule"></div>
+
+        <div class="terminal-hint">
+          Type <span>help</span> for available commands.
+        </div>
+      </div>
+    `;
   }
 
   return terminalHistory
-    .map(
-      (entry) =>
-        `<pre class="terminal-line ${entry.className}">${escapeHtml(
+    .map((entry) => {
+      if (entry.type === "command") {
+        return `
+          <div class="terminal-entry terminal-command">
+            <span>${escapeHtml(entry.text)}</span>
+          </div>
+        `;
+      }
+
+      if (entry.type === "success") {
+        return `
+          <pre class="terminal-entry terminal-success">${escapeHtml(
+            entry.text,
+          )}</pre>
+        `;
+      }
+
+      if (entry.type === "error") {
+        return `
+          <pre class="terminal-entry terminal-error">${escapeHtml(
+            entry.text,
+          )}</pre>
+        `;
+      }
+
+      return `
+        <pre class="terminal-entry terminal-output-text">${escapeHtml(
           entry.text,
-        )}</pre>`,
-    )
+        )}</pre>
+      `;
+    })
     .join("");
 }
 
-// -----------------------------------------------------------------------------
-// Shell parsing
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Shell                                                                      */
+/* -------------------------------------------------------------------------- */
 
 function tokenize(command: string): string[] {
-  return command
-    .replace(/2>\/dev\/null/g, "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  return command.trim().split(/\s+/).filter(Boolean);
 }
 
 function commandName(command: string): string {
@@ -846,73 +729,22 @@ function commandArguments(command: string): string[] {
   return tokenize(command).slice(1);
 }
 
-function hasFlag(args: string[], flag: string): boolean {
-  return args.includes(flag);
-}
-
 function stripFlags(args: string[]): string[] {
   return args.filter((arg) => !arg.startsWith("-"));
 }
 
-// -----------------------------------------------------------------------------
-// Shell commands
-// -----------------------------------------------------------------------------
-
-function shellHelp(): string {
-  return [
-    "EDERA / ISOLATION RESEARCH LAB",
-    "THE BOUNDARY — SECURITY CHALLENGE 01",
-    "",
-    "SHELL",
-    "  pwd                         show current directory",
-    "  ls [path]                   list directory",
-    "  ls -la [path]               detailed directory listing",
-    "  tree [path]                 inspect filesystem tree",
-    "  cd <path>                   change directory",
-    "  cat <file>                  read a file",
-    "  find <path>                 find files",
-    "  whoami                      identify the workload user",
-    "  hostname                    identify the workload",
-    "  env                         inspect environment",
-    "  ps                          inspect processes",
-    "  uname -a                    inspect kernel",
-    "",
-    "WORKLOAD",
-    "  cat /etc/workload",
-    "  cat /etc/security-boundary",
-    "  cat /etc/node",
-    "  cat /proc/version",
-    "  cat /app/worker.py",
-    "",
-    "PLATFORM",
-    "  kubectl get pods",
-    "  kubectl get namespaces",
-    "  inspect workload",
-    "  inspect node",
-    "  inspect isolation",
-    "",
-    "INVESTIGATION",
-    "  scan kernel",
-    "  exploit kernel",
-    "  list tenants",
-    "  access customer-b",
-    "  access platform",
-    "  verify isolation",
-    "  inspect isolated",
-    "  exploit isolated",
-    "  access isolated-neighbor",
-    "",
-    "SUBMIT",
-    "  submit <flag>",
-  ].join("\n");
+function hasFlag(args: string[], flag: string): boolean {
+  return args.includes(flag);
 }
 
 function runLs(args: string[]): string {
-  const detailed = hasFlag(args, "-l") || hasFlag(args, "-la") ||
+  const detailed =
+    hasFlag(args, "-l") ||
+    hasFlag(args, "-la") ||
     hasFlag(args, "-al");
+
   const paths = stripFlags(args);
   const target = normalizePath(paths[0] ?? state.cwd);
-
   const file = getFile(target);
 
   if (!file) {
@@ -920,11 +752,9 @@ function runLs(args: string[]): string {
   }
 
   if (file.kind === "file") {
-    if (detailed) {
-      return `${file.mode} 1 ${file.owner} ${file.group}  ${file.path}`;
-    }
-
-    return relativeName(file.path, state.cwd);
+    return detailed
+      ? `${file.mode} 1 ${file.owner} ${file.group}  ${file.path}`
+      : file.path;
   }
 
   const entries = directoryEntries(target).sort((a, b) => {
@@ -937,72 +767,87 @@ function runLs(args: string[]): string {
 
   if (!detailed) {
     return entries
-      .map((entry) =>
-        entry.kind === "directory"
-          ? `${relativeName(entry.path, target)}/`
-          : relativeName(entry.path, target),
-      )
+      .map((entry) => {
+        const name =
+          target === "/"
+            ? entry.path.slice(1)
+            : entry.path.slice(target.length + 1);
+
+        return entry.kind === "directory" ? `${name}/` : name;
+      })
       .join("  ");
   }
 
   const lines = [
     `total ${entries.length * 4}`,
-    `drwxr-xr-x  1 root     root     4096 .`,
-    `drwxr-xr-x  1 root     root     4096 ..`,
+    "drwxr-xr-x  1 root     root     4096 .",
+    "drwxr-xr-x  1 root     root     4096 ..",
   ];
 
   for (const entry of entries) {
+    const name =
+      target === "/"
+        ? entry.path.slice(1)
+        : entry.path.slice(target.length + 1);
+
     lines.push(
-      [
-        entry.mode,
-        "1",
-        entry.owner.padEnd(8),
-        entry.group.padEnd(8),
-        "4096",
-        relativeName(entry.path, target),
-      ].join(" "),
+      `${entry.mode} 1 ${entry.owner.padEnd(8)} ${entry.group.padEnd(
+        8,
+      )} 4096 ${name}`,
     );
   }
 
   return lines.join("\n");
 }
 
-function buildTree(path: string, prefix = ""): string {
+function buildTree(path: string): string {
   const target = normalizePath(path);
 
   if (!directoryExists(target)) {
     return `tree: '${path}': No such directory`;
   }
 
-  const entries = directoryEntries(target).sort((a, b) => {
-    if (a.kind !== b.kind) {
-      return a.kind === "directory" ? -1 : 1;
-    }
+  const lines: string[] = [
+    target === "/" ? "/" : displayPath(target),
+  ];
 
-    return a.path.localeCompare(b.path);
-  });
+  function walk(
+    current: string,
+    prefix: string,
+  ): void {
+    const entries = directoryEntries(current).sort((a, b) => {
+      if (a.kind !== b.kind) {
+        return a.kind === "directory" ? -1 : 1;
+      }
 
-  const lines: string[] = [target === "/" ? "/" : relativeName(target, "/")];
+      return a.path.localeCompare(b.path);
+    });
 
-  entries.forEach((entry, index) => {
-    const last = index === entries.length - 1;
-    const branch = last ? "└── " : "├── ";
-    const childPrefix = prefix + (last ? "    " : "│   ");
+    entries.forEach((entry, index) => {
+      const last = index === entries.length - 1;
+      const branch = last ? "└── " : "├── ";
 
-    lines.push(
-      `${prefix}${branch}${relativeName(entry.path, target)}${
-        entry.kind === "directory" ? "/" : ""
-      }`,
-    );
+      const name =
+        current === "/"
+          ? entry.path.slice(1)
+          : entry.path.slice(current.length + 1);
 
-    if (entry.kind === "directory") {
-      const nested = buildTree(entry.path, childPrefix)
-        .split("\n")
-        .slice(1);
+      lines.push(
+        `${prefix}${branch}${name}${
+          entry.kind === "directory" ? "/" : ""
+        }`,
+      );
 
-      lines.push(...nested.map((line) => `${line}`));
-    }
-  });
+      if (entry.kind === "directory") {
+        walk(
+          entry.path,
+          prefix + (last ? "    " : "│   "),
+        );
+      }
+    });
+  }
+
+  walk(target, "");
 
   return lines.join("\n");
 }
@@ -1028,21 +873,18 @@ function runFind(args: string[]): string {
 }
 
 function runCat(args: string[]): string {
-  const path = args[0];
-
-  if (!path) {
+  if (!args[0]) {
     return "cat: missing operand";
   }
 
-  const normalized = normalizePath(path);
-  const file = getFile(normalized);
+  const file = getFile(args[0]);
 
   if (!file) {
-    return `cat: ${path}: No such file or directory`;
+    return `cat: ${args[0]}: No such file or directory`;
   }
 
   if (file.kind === "directory") {
-    return `cat: ${path}: Is a directory`;
+    return `cat: ${args[0]}: Is a directory`;
   }
 
   return file.content ?? "";
@@ -1056,18 +898,20 @@ function runCd(args: string[]): string {
   }
 
   state.cwd = target;
+
   return "";
 }
 
-function runUname(): string {
-  return [
-    "Linux image-processor 6.8.0-acme",
-    "#1 SMP PREEMPT_DYNAMIC",
-    "x86_64 GNU/Linux",
-  ].join(" ");
-}
-
 function runWhoami(): string {
+  if (state.environment === "isolated-zone") {
+    return [
+      "uid=1000(customer-c)",
+      "groups=customer,workload",
+      "",
+      "Role: untrusted customer workload",
+    ].join("\n");
+  }
+
   return [
     "uid=1000(customer-a)",
     "groups=customer,workload",
@@ -1077,6 +921,17 @@ function runWhoami(): string {
 }
 
 function runEnv(): string {
+  if (state.environment === "isolated-zone") {
+    return [
+      "WORKLOAD=customer-c/ai-agent",
+      "TENANT=customer-c",
+      "EXECUTION_MODE=untrusted",
+      "PLATFORM=webernetes",
+      "ZONE=isolated-zone-01",
+      "KERNEL=zone-kernel-01",
+    ].join("\n");
+  }
+
   return [
     "WORKLOAD=customer-a/image-processor",
     "TENANT=customer-a",
@@ -1088,6 +943,14 @@ function runEnv(): string {
 }
 
 function runPs(): string {
+  if (state.environment === "isolated-zone") {
+    return [
+      "PID   USER       COMMAND",
+      "1     customer   /home/customer/app/ai-agent",
+      "19    customer   /bin/sh",
+    ].join("\n");
+  }
+
   return [
     "PID   USER       COMMAND",
     "1     customer   /app/image-processor",
@@ -1096,45 +959,51 @@ function runPs(): string {
   ].join("\n");
 }
 
-// -----------------------------------------------------------------------------
-// Platform / investigation commands
-// -----------------------------------------------------------------------------
-
-function runKubectl(command: string): string {
-  const args = commandArguments(command);
-
-  if (args[0] !== "get") {
-    return "kubectl: simulated command not available";
-  }
-
-  if (args[1] === "pods") {
-    return [
-      "NAME                         READY   STATUS",
-      "image-processor-a            1/1     Running",
-      "billing-api-b                1/1     Running",
-      "recommendation-c             1/1     Running",
-      "platform-agent               1/1     Running",
-    ].join("\n");
-  }
-
-  if (args[1] === "namespaces" || args[1] === "namespace") {
-    return [
-      "NAME",
-      "customer-a",
-      "customer-b",
-      "customer-c",
-      "platform",
-    ].join("\n");
-  }
-
+function runHelp(): string {
   return [
-    "NAME",
-    "customer-a",
-    "customer-b",
-    "customer-c",
-    "platform",
+    "EDERA / ISOLATION RESEARCH LAB",
+    "THE BOUNDARY — SECURITY CHALLENGE 01",
+    "",
+    "SHELL",
+    "  pwd",
+    "  ls [path]",
+    "  ls -la [path]",
+    "  tree [path]",
+    "  cd <path>",
+    "  cat <file>",
+    "  find <path>",
+    "  whoami",
+    "  hostname",
+    "  env",
+    "  ps",
+    "  uname -a",
+    "",
+    "PLATFORM",
+    "  kubectl get pods",
+    "  kubectl get namespaces",
+    "  inspect workload",
+    "  inspect node",
+    "  inspect isolation",
+    "",
+    "INVESTIGATION",
+    "  scan kernel",
+    "  exploit kernel",
+    "  list tenants",
+    "  access customer-b",
+    "  access platform",
+    "  verify isolation",
+    "  inspect isolated",
+    "  exploit isolated",
+    "  access isolated-neighbor",
+    "",
+    "SUBMIT",
+    "  submit <flag>",
   ].join("\n");
 }
+
+/* -------------------------------------------------------------------------- */
+/* Investigation commands                                                    */
+/* -------------------------------------------------------------------------- */
 
 function runInspectWorkload(): string {
   state.discoveredCodeExecution = true;
@@ -1223,7 +1092,6 @@ function runScanKernel(): string {
 
 function runExploitKernel(): string {
   state.kernelCompromised = true;
-  state.discoveredSharedKernel = true;
   updatePhase();
 
   return [
@@ -1240,7 +1108,7 @@ function runExploitKernel(): string {
     "The attacker is no longer confined to the",
     "customer-a process namespace.",
     "",
-    "The host filesystem is now visible in the simulator.",
+    "The host filesystem is now visible.",
     "Try: ls -la /host",
   ].join("\n");
 }
@@ -1393,50 +1261,39 @@ function runAccessIsolatedNeighbor(): string {
   ].join("\n");
 }
 
-// -----------------------------------------------------------------------------
-// Command engine
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Command engine                                                             */
+/* -------------------------------------------------------------------------- */
 
 async function runCommand(command: string): Promise<string> {
   state.commandCount++;
 
-  await new Promise((resolve) => setTimeout(resolve, 180));
-
-  const normalized = command.trim().toLowerCase();
-
-  if (!normalized) {
-    return "";
-  }
+  await new Promise((resolve) => setTimeout(resolve, 160));
 
   const name = commandName(command);
+  const args = commandArguments(command);
 
   switch (name) {
     case "help":
-      return shellHelp();
+      return runHelp();
 
     case "pwd":
       return state.cwd;
 
     case "ls":
-      return runLs(commandArguments(command));
+      return runLs(args);
 
-    case "tree": {
-      const args = commandArguments(command);
-      const path = stripFlags(args)[0] ?? state.cwd;
-      return buildTree(path);
-    }
+    case "tree":
+      return buildTree(stripFlags(args)[0] ?? state.cwd);
 
     case "find":
-      return runFind(commandArguments(command));
+      return runFind(args);
 
     case "cat":
-      return runCat(commandArguments(command));
+      return runCat(args);
 
     case "cd":
-      return runCd(commandArguments(command));
-
-    case "uname":
-      return runUname();
+      return runCd(args);
 
     case "whoami":
       return runWhoami();
@@ -1447,32 +1304,42 @@ async function runCommand(command: string): Promise<string> {
         : "image-processor.customer-a";
 
     case "env":
-      return state.environment === "isolated-zone"
-        ? [
-            "WORKLOAD=customer-c/ai-agent",
-            "TENANT=customer-c",
-            "EXECUTION_MODE=untrusted",
-            "PLATFORM=webernetes",
-            "ZONE=isolated-zone-01",
-            "KERNEL=zone-kernel-01",
-          ].join("\n")
-        : runEnv();
+      return runEnv();
 
     case "ps":
-      return state.environment === "isolated-zone"
-        ? [
-            "PID   USER       COMMAND",
-            "1     customer   /home/customer/app/ai-agent",
-            "19    customer   /bin/sh",
-          ].join("\n")
-        : runPs();
+      return runPs();
+
+    case "uname":
+      return [
+        "Linux image-processor 6.8.0-acme",
+        "#1 SMP PREEMPT_DYNAMIC",
+        "x86_64 GNU/Linux",
+      ].join(" ");
 
     case "kubectl":
-      return runKubectl(command);
+      if (args[0] !== "get") {
+        return "kubectl: simulated command not available";
+      }
 
-    case "inspect": {
-      const args = commandArguments(command);
+      if (args[1] === "pods") {
+        return [
+          "NAME                         READY   STATUS",
+          "image-processor-a            1/1     Running",
+          "billing-api-b                1/1     Running",
+          "recommendation-c             1/1     Running",
+          "platform-agent               1/1     Running",
+        ].join("\n");
+      }
 
+      return [
+        "NAME",
+        "customer-a",
+        "customer-b",
+        "customer-c",
+        "platform",
+      ].join("\n");
+
+    case "inspect":
       if (args[0] === "workload") {
         return runInspectWorkload();
       }
@@ -1496,21 +1363,18 @@ async function runCommand(command: string): Promise<string> {
         "  inspect isolation",
         "  inspect isolated",
       ].join("\n");
-    }
 
     case "scan":
-      if (commandArguments(command)[0] === "kernel") {
-        return runScanKernel();
-      }
-
-      return "Usage: scan kernel";
+      return args[0] === "kernel"
+        ? runScanKernel()
+        : "Usage: scan kernel";
 
     case "exploit":
-      if (commandArguments(command)[0] === "kernel") {
+      if (args[0] === "kernel") {
         return runExploitKernel();
       }
 
-      if (commandArguments(command)[0] === "isolated") {
+      if (args[0] === "isolated") {
         return runExploitIsolated();
       }
 
@@ -1521,24 +1385,20 @@ async function runCommand(command: string): Promise<string> {
       ].join("\n");
 
     case "list":
-      if (commandArguments(command)[0] === "tenants") {
-        return runListTenants();
-      }
+      return args[0] === "tenants"
+        ? runListTenants()
+        : "Usage: list tenants";
 
-      return "Usage: list tenants";
-
-    case "access": {
-      const target = commandArguments(command)[0];
-
-      if (target === "customer-b") {
+    case "access":
+      if (args[0] === "customer-b") {
         return runAccessCustomerB();
       }
 
-      if (target === "platform") {
+      if (args[0] === "platform") {
         return runAccessPlatform();
       }
 
-      if (target === "isolated-neighbor") {
+      if (args[0] === "isolated-neighbor") {
         return runAccessIsolatedNeighbor();
       }
 
@@ -1548,14 +1408,11 @@ async function runCommand(command: string): Promise<string> {
         "  access platform",
         "  access isolated-neighbor",
       ].join("\n");
-    }
 
     case "verify":
-      if (commandArguments(command)[0] === "isolation") {
-        return runVerifyIsolation();
-      }
-
-      return "Usage: verify isolation";
+      return args[0] === "isolation"
+        ? runVerifyIsolation()
+        : "Usage: verify isolation";
 
     case "submit": {
       const submittedFlag = command.slice(7).trim();
@@ -1565,15 +1422,24 @@ async function runCommand(command: string): Promise<string> {
         state.phase = "complete";
 
         return [
+          "",
+          "╔══════════════════════════════════════════════════════╗",
+          "║              INVESTIGATION COMPLETE                ║",
+          "╚══════════════════════════════════════════════════════╝",
+          "",
           "FLAG VALID.",
           "",
-          "ACCESS GRANTED.",
-          "",
-          "Investigation complete.",
+          "You identified the security boundary.",
           "",
           "The kernel was the boundary.",
           "",
-          FLAG,
+          "Congratulations!",
+          "",
+          "Go collect your reward at:",
+          "https://edera.dev/love",
+          "",
+          "EDERA / THE BOUNDARY",
+          "SECURITY CHALLENGE 01",
         ].join("\n");
       }
 
@@ -1593,9 +1459,9 @@ async function runCommand(command: string): Promise<string> {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Game progression
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Game progression                                                           */
+/* -------------------------------------------------------------------------- */
 
 function updatePhase(): void {
   if (state.flagSubmitted) {
@@ -1630,27 +1496,18 @@ function updatePhase(): void {
   state.phase = "briefing";
 }
 
-// -----------------------------------------------------------------------------
-// UI state
-// -----------------------------------------------------------------------------
-
 function phaseLabel(): string {
   switch (state.phase) {
     case "briefing":
       return "BRIEFING";
-
     case "investigation":
       return "INVESTIGATION";
-
     case "kernel":
       return "KERNEL ANALYSIS";
-
     case "blast-radius":
       return "BLAST RADIUS";
-
     case "isolation":
       return "ISOLATION TEST";
-
     case "complete":
       return "COMPLETE";
   }
@@ -1660,19 +1517,14 @@ function phaseNumber(): string {
   switch (state.phase) {
     case "briefing":
       return "01";
-
     case "investigation":
       return "02";
-
     case "kernel":
       return "03";
-
     case "blast-radius":
       return "04";
-
     case "isolation":
       return "05";
-
     case "complete":
       return "06";
   }
@@ -1682,19 +1534,14 @@ function phaseDescription(): string {
   switch (state.phase) {
     case "briefing":
       return "Establish what the workload is allowed to execute.";
-
     case "investigation":
       return "Determine what actually separates this workload from the node.";
-
     case "kernel":
       return "Inspect the kernel dependency and test its security boundary.";
-
     case "blast-radius":
       return "Measure what becomes reachable after kernel compromise.";
-
     case "isolation":
-      return "Compare the shared-kernel model with an isolated execution zone.";
-
+      return "Compare the shared-kernel model with isolated execution.";
     case "complete":
       return "Investigation complete. The boundary has been identified.";
   }
@@ -1707,15 +1554,14 @@ interface Objective {
 }
 
 function objectives(): Objective[] {
-  const investigationDone =
+  const boundaryFound =
     state.discoveredCodeExecution &&
     state.discoveredNode &&
     state.discoveredSharedKernel;
 
-  const blastRadiusDone =
-    state.customerBAccessed && state.platformAccessed;
-
-  const isolationDone = state.isolatedTested;
+  const blastRadiusMeasured =
+    state.customerBAccessed &&
+    state.platformAccessed;
 
   return [
     {
@@ -1725,41 +1571,45 @@ function objectives(): Objective[] {
     },
     {
       label: "Identify execution boundary",
-      complete: investigationDone,
+      complete: boundaryFound,
       current:
         state.discoveredCodeExecution &&
-        !investigationDone,
+        !boundaryFound,
     },
     {
       label: "Investigate kernel",
       complete: state.kernelScanned,
       current:
-        investigationDone && !state.kernelScanned,
+        boundaryFound &&
+        !state.kernelScanned,
     },
     {
       label: "Measure blast radius",
-      complete: blastRadiusDone,
+      complete: blastRadiusMeasured,
       current:
-        state.kernelCompromised && !blastRadiusDone,
+        state.kernelCompromised &&
+        !blastRadiusMeasured,
     },
     {
       label: "Test isolated execution",
-      complete: isolationDone,
+      complete: state.isolatedTested,
       current:
-        blastRadiusDone && !isolationDone,
+        blastRadiusMeasured &&
+        !state.isolatedTested,
     },
     {
       label: "Submit finding",
       complete: state.flagSubmitted,
       current:
-        isolationDone && !state.flagSubmitted,
+        state.isolatedTested &&
+        !state.flagSubmitted,
     },
   ];
 }
 
-// -----------------------------------------------------------------------------
-// Architecture visualization
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Architecture                                                               */
+/* -------------------------------------------------------------------------- */
 
 function renderArchitecture(): string {
   if (state.phase === "complete") {
@@ -1798,13 +1648,13 @@ function renderArchitecture(): string {
         <div class="architecture-header">
           <div>
             <div class="eyebrow">ISOLATED EXECUTION</div>
-            <h3>Dedicated zone</h3>
+            <h3>Dedicated execution zone</h3>
           </div>
           <span class="status-pill status-safe">BOUNDARY HOLDS</span>
         </div>
 
         <div class="zone-diagram">
-          <div class="arch-tenant-row">
+          <div class="arch-tenant-row isolated-tenants">
             <div class="arch-workload">
               <span class="node-dot safe"></span>
               customer-c
@@ -1815,7 +1665,9 @@ function renderArchitecture(): string {
           <div class="arch-connector safe-connector"></div>
 
           <div class="arch-box isolated-box">
-            <div class="arch-box-title">ISOLATED EXECUTION ZONE</div>
+            <div class="arch-box-title">
+              ISOLATED EXECUTION ZONE
+            </div>
             <div class="arch-box-meta">
               dedicated zone kernel
             </div>
@@ -1854,19 +1706,19 @@ function renderArchitecture(): string {
               <small>image-processor</small>
             </div>
 
-            <div class="arch-workload">
+            <div class="arch-workload compromised">
               <span class="node-dot danger"></span>
               customer-b
               <small>billing-api</small>
             </div>
 
-            <div class="arch-workload">
+            <div class="arch-workload compromised">
               <span class="node-dot danger"></span>
               customer-c
               <small>recommendation</small>
             </div>
 
-            <div class="arch-workload">
+            <div class="arch-workload compromised">
               <span class="node-dot danger"></span>
               platform
               <small>platform-agent</small>
@@ -1876,9 +1728,15 @@ function renderArchitecture(): string {
           <div class="arch-connector danger-connector"></div>
 
           <div class="kernel-box compromised">
-            <div class="arch-box-title">SHARED LINUX KERNEL</div>
-            <div class="arch-box-meta">acme-kernel-001</div>
-            <div class="arch-box-meta">KERNEL COMPROMISED</div>
+            <div class="arch-box-title">
+              SHARED LINUX KERNEL
+            </div>
+            <div class="arch-box-meta">
+              acme-kernel-001
+            </div>
+            <div class="arch-box-meta">
+              KERNEL COMPROMISED
+            </div>
           </div>
 
           <div class="blast-radius">
@@ -1897,6 +1755,7 @@ function renderArchitecture(): string {
           <div class="eyebrow">CURRENT ARCHITECTURE</div>
           <h3>Shared-kernel workload</h3>
         </div>
+
         <span class="status-pill ${
           state.discoveredSharedKernel
             ? "status-warning"
@@ -1940,11 +1799,7 @@ function renderArchitecture(): string {
         <div class="arch-connector"></div>
 
         <div class="kernel-box">
-          <div class="arch-box-title">
-            ${state.discoveredSharedKernel
-              ? "SHARED LINUX KERNEL"
-              : "KERNEL"}
-          </div>
+          <div class="arch-box-title">KERNEL</div>
           <div class="arch-box-meta">
             ${
               state.discoveredSharedKernel
@@ -1958,16 +1813,14 @@ function renderArchitecture(): string {
   `;
 }
 
-// -----------------------------------------------------------------------------
-// Main render
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Rendering                                                                  */
+/* -------------------------------------------------------------------------- */
 
 function render(): void {
   const app = document.querySelector<HTMLDivElement>("#app");
 
-  if (!app) {
-    return;
-  }
+  if (!app) return;
 
   const objectiveItems = objectives();
 
@@ -1977,11 +1830,15 @@ function render(): void {
       <header class="topbar">
         <div class="brand">
           <div class="brand-wordmark">EDERA</div>
-          <div class="brand-subtitle">ISOLATION RESEARCH LAB</div>
+          <div class="brand-subtitle">
+            ISOLATION RESEARCH LAB
+          </div>
         </div>
 
         <div class="challenge-title">
-          <div class="challenge-kicker">SECURITY CHALLENGE 01</div>
+          <div class="challenge-kicker">
+            SECURITY CHALLENGE 01
+          </div>
           <h1>THE BOUNDARY</h1>
         </div>
 
@@ -2059,7 +1916,7 @@ function render(): void {
                     }"
                     title="${escapeHtml(objective.label)}"
                   >
-                    <span>${String(index + 1).padStart(2, "0")}</span>
+                    ${String(index + 1).padStart(2, "0")}
                   </div>
                 `,
               )
@@ -2079,23 +1936,32 @@ function render(): void {
               </div>
 
               <div class="terminal-title">
-                <span class="terminal-lock">●</span>
-                shell / ${state.environment === "isolated-zone"
-                  ? "isolated-zone-01"
-                  : "worker-02"}
+                <span class="terminal-live-dot"></span>
+                shell /
+                ${
+                  state.environment === "isolated-zone"
+                    ? "isolated-zone-01"
+                    : "worker-02"
+                }
               </div>
 
               <div class="terminal-live">LIVE</div>
             </div>
 
-            <div class="terminal-output" id="terminal-output">
-              ${renderHistory()}
+            <div
+              class="terminal-output"
+              id="terminal-output"
+            >
+              ${renderTerminalHistory()}
             </div>
 
-            <form class="terminal-input" id="terminal-form">
-              <span class="terminal-prompt">${escapeHtml(
-                promptText(),
-              )}</span>
+            <form
+              class="terminal-input"
+              id="terminal-form"
+            >
+              <span class="terminal-prompt">
+                ${escapeHtml(promptText())}
+              </span>
 
               <input
                 id="command-input"
@@ -2105,10 +1971,7 @@ function render(): void {
                 autocapitalize="off"
                 spellcheck="false"
                 aria-label="Terminal command"
-                autofocus
               />
-
-              <span class="terminal-cursor"></span>
             </form>
 
           </div>
@@ -2179,7 +2042,9 @@ function render(): void {
                           }
                         </span>
 
-                        <span>${escapeHtml(objective.label)}</span>
+                        <span>
+                          ${escapeHtml(objective.label)}
+                        </span>
                       </div>
                     `,
                   )
@@ -2194,6 +2059,7 @@ function render(): void {
 
                 <div class="boundary-layer">
                   <span class="layer-number">01</span>
+
                   <div>
                     <strong>Workload</strong>
                     <small>customer-supplied code</small>
@@ -2206,6 +2072,7 @@ function render(): void {
 
                 <div class="boundary-layer">
                   <span class="layer-number">02</span>
+
                   <div>
                     <strong>Container</strong>
                     <small>namespaces + cgroups</small>
@@ -2220,8 +2087,10 @@ function render(): void {
                   state.kernelCompromised ? "danger-layer" : ""
                 }">
                   <span class="layer-number">03</span>
+
                   <div>
                     <strong>Linux kernel</strong>
+
                     <small>
                       ${
                         state.kernelCompromised
@@ -2247,6 +2116,7 @@ function render(): void {
 
           <section class="card guide-card">
             <div class="eyebrow">FIELD NOTES</div>
+
             <h3>Start with discovery.</h3>
 
             <p>
@@ -2279,6 +2149,7 @@ function render(): void {
 
             <div class="isolation-callout">
               <span class="callout-mark">+</span>
+
               <span>
                 Compare the shared-kernel workload with the isolated
                 execution zone before submitting your finding.
@@ -2308,15 +2179,16 @@ function render(): void {
       output.scrollTop = output.scrollHeight;
     }
 
-    document
-      .querySelector<HTMLInputElement>("#command-input")
-      ?.focus();
+    const input =
+      document.querySelector<HTMLInputElement>("#command-input");
+
+    input?.focus();
   });
 }
 
-// -----------------------------------------------------------------------------
-// Terminal interaction
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Terminal interaction                                                       */
+/* -------------------------------------------------------------------------- */
 
 function wireTerminal(): void {
   const form =
@@ -2325,38 +2197,32 @@ function wireTerminal(): void {
   const input =
     document.querySelector<HTMLInputElement>("#command-input");
 
-  if (!form || !input) {
-    return;
-  }
+  if (!form || !input) return;
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const command = input.value.trim();
 
-    if (!command) {
-      return;
-    }
+    if (!command) return;
 
     input.disabled = true;
 
-    addCommandHistory(command);
+    addCommand(command);
 
     const response = await runCommand(command);
 
     if (response) {
-      const className =
-        command.toLowerCase().startsWith("submit ")
-          ? state.flagSubmitted
-            ? "terminal-success"
-            : "terminal-error"
-          : command.toLowerCase().includes("exploit")
-            ? state.kernelCompromised
-              ? "terminal-danger"
-              : "terminal-response"
-            : "terminal-response";
-
-      addHistory(response, className);
+      if (state.flagSubmitted) {
+        addHistory("success", response);
+      } else if (
+        response.includes("FLAG REJECTED") ||
+        response.includes("ACCESS DENIED")
+      ) {
+        addHistory("error", response);
+      } else {
+        addHistory("output", response);
+      }
     }
 
     updatePhase();
@@ -2364,8 +2230,8 @@ function wireTerminal(): void {
   });
 }
 
-// -----------------------------------------------------------------------------
-// Boot
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
+/* Boot                                                                       */
+/* -------------------------------------------------------------------------- */
 
 render();
