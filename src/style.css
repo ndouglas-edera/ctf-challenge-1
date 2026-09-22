@@ -22,7 +22,7 @@
 
   --terminal: #012f2d;
   --terminal-deep: #002523;
-  --terminal-line: rgba(0, 229, 212, 0.18);
+  --terminal-line: rgba(0, 229, 212, 0.17);
   --terminal-text: #dff7f0;
 
   --font-body:
@@ -41,12 +41,6 @@
     Monaco,
     Consolas,
     monospace;
-
-  --shadow-panel:
-    0 18px 45px rgba(0, 20, 19, 0.18);
-
-  --shadow-terminal:
-    0 24px 60px rgba(0, 0, 0, 0.28);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -67,9 +61,12 @@ html {
 
 body {
   min-width: 320px;
+
   background: var(--edera-deep);
   color: var(--edera-white);
+
   font-family: var(--font-body);
+
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -89,7 +86,7 @@ input {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Overall shell                                                              */
+/* Background                                                                 */
 /* -------------------------------------------------------------------------- */
 
 .game {
@@ -103,14 +100,14 @@ input {
 
   background:
     radial-gradient(
-      circle at 50% 12%,
-      rgba(0, 229, 212, 0.11),
-      transparent 30%
+      circle at 50% 8%,
+      rgba(0, 229, 212, 0.08),
+      transparent 28%
     ),
     radial-gradient(
-      circle at 12% 70%,
-      rgba(184, 255, 60, 0.035),
-      transparent 26%
+      circle at 10% 72%,
+      rgba(184, 255, 60, 0.025),
+      transparent 25%
     ),
     var(--edera-deep);
 }
@@ -121,13 +118,13 @@ input {
   position: absolute;
   z-index: -1;
 
-  top: 110px;
-  left: 4%;
+  top: 95px;
+  left: 3%;
 
-  width: 92%;
-  height: 900px;
+  width: 94%;
+  height: 1000px;
 
-  opacity: 0.38;
+  opacity: 0.35;
 
   background-image:
     radial-gradient(
@@ -141,17 +138,23 @@ input {
     linear-gradient(
       to bottom,
       transparent,
-      #000 15%,
-      #000 75%,
+      #000 14%,
+      #000 72%,
       transparent
     );
 
   pointer-events: none;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Main layout                                                                */
+/* -------------------------------------------------------------------------- */
+
 .main {
   width: min(100%, 1240px);
+
   margin: 0 auto;
+
   padding: 0 28px 34px;
 }
 
@@ -165,12 +168,14 @@ input {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
+
   gap: 28px;
 
   width: min(calc(100% - 56px), 1240px);
+
   min-height: 78px;
 
-  margin: 24px auto 30px;
+  margin: 14px auto 30px;
   padding: 12px 22px;
 
   border: 1px solid rgba(0, 63, 61, 0.08);
@@ -179,28 +184,35 @@ input {
   background: var(--edera-mint);
   color: var(--edera-ink);
 
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.16);
 }
 
 .brand {
   display: flex;
   align-items: baseline;
-  gap: 11px;
+
+  gap: 10px;
+
   white-space: nowrap;
 }
 
 .brand-wordmark {
   color: var(--edera-ink);
-  font-size: 22px;
+
+  font-size: 21px;
   font-weight: 700;
-  letter-spacing: -0.05em;
+
+  letter-spacing: -0.055em;
 }
 
 .brand-subtitle {
   color: var(--edera-teal-2);
+
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   letter-spacing: 0.1em;
 }
 
@@ -209,12 +221,14 @@ input {
 }
 
 .challenge-kicker {
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 
   color: var(--edera-teal-2);
+
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   letter-spacing: 0.13em;
 }
 
@@ -223,21 +237,26 @@ input {
 
   color: var(--edera-ink);
 
-  font-size: clamp(18px, 2.2vw, 27px);
+  font-size: clamp(18px, 2.3vw, 27px);
   line-height: 1;
+
   font-weight: 700;
-  letter-spacing: -0.045em;
+
+  letter-spacing: -0.055em;
 }
 
 .topbar-status {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+
   gap: 8px;
 
   color: var(--edera-teal);
+
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   letter-spacing: 0.08em;
 }
 
@@ -248,7 +267,9 @@ input {
   border-radius: 50%;
 
   background: var(--edera-lime);
-  box-shadow: 0 0 0 4px rgba(184, 255, 60, 0.14);
+
+  box-shadow:
+    0 0 0 4px rgba(184, 255, 60, 0.14);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -257,11 +278,14 @@ input {
 
 .eyebrow {
   color: var(--edera-teal-2);
+
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   line-height: 1.2;
   letter-spacing: 0.13em;
+
   text-transform: uppercase;
 }
 
@@ -271,11 +295,15 @@ input {
 
 .mission {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(250px, 0.75fr);
-  gap: 28px;
 
-  margin-bottom: 16px;
-  padding: 30px 32px;
+  grid-template-columns:
+    minmax(0, 1.7fr)
+    minmax(245px, 0.72fr);
+
+  gap: 30px;
+
+  margin-bottom: 15px;
+  padding: 28px 31px;
 
   border: 1px solid var(--edera-line);
   border-radius: 20px;
@@ -283,20 +311,23 @@ input {
   background: var(--edera-mint);
   color: var(--edera-ink);
 
-  box-shadow: var(--shadow-panel);
+  box-shadow:
+    0 18px 45px rgba(0, 20, 19, 0.16);
 }
 
 .mission-copy h2 {
-  max-width: 720px;
+  max-width: 780px;
 
-  margin: 8px 0 14px;
+  margin: 8px 0 13px;
 
   color: var(--edera-ink);
 
-  font-size: clamp(30px, 4vw, 52px);
+  font-size: clamp(32px, 4vw, 50px);
   line-height: 0.98;
+
   font-weight: 700;
-  letter-spacing: -0.055em;
+
+  letter-spacing: -0.06em;
 }
 
 .mission-copy h2 span {
@@ -304,13 +335,13 @@ input {
 }
 
 .mission-copy p {
-  max-width: 760px;
+  max-width: 790px;
 
-  margin: 0 0 10px;
+  margin: 0 0 9px;
 
-  color: #2a5955;
+  color: #356963;
 
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -318,9 +349,8 @@ input {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0;
 
-  padding-left: 26px;
+  padding-left: 25px;
 
   border-left: 1px solid var(--edera-line);
 }
@@ -328,9 +358,10 @@ input {
 .meta-item {
   display: flex;
   flex-direction: column;
+
   gap: 4px;
 
-  padding: 13px 0;
+  padding: 12px 0;
 
   border-bottom: 1px solid var(--edera-line);
 }
@@ -341,15 +372,18 @@ input {
 
 .meta-item span {
   color: var(--edera-teal-2);
+
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
+
   letter-spacing: 0.12em;
 }
 
 .meta-item strong {
   color: var(--edera-ink);
-  font-size: 12px;
+
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -361,10 +395,11 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 28px;
 
-  margin-bottom: 16px;
-  padding: 14px 18px;
+  margin-bottom: 15px;
+  padding: 12px 17px;
 
   border: 1px solid rgba(0, 229, 212, 0.16);
   border-radius: 14px;
@@ -375,6 +410,7 @@ input {
 .progress-copy {
   display: flex;
   flex-direction: column;
+
   gap: 4px;
 
   min-width: 0;
@@ -386,13 +422,15 @@ input {
 
 .progress-copy strong {
   color: var(--terminal-text);
-  font-size: 12px;
+
+  font-size: 11px;
   font-weight: 500;
 }
 
 .progress-track {
   display: flex;
   align-items: center;
+
   gap: 6px;
 }
 
@@ -400,33 +438,32 @@ input {
   display: grid;
   place-items: center;
 
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
 
-  border: 1px solid rgba(168, 207, 202, 0.2);
+  border: 1px solid rgba(168, 207, 202, 0.18);
   border-radius: 50%;
 
-  color: rgba(168, 207, 202, 0.55);
+  color: rgba(168, 207, 202, 0.5);
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
-
-  transition:
-    background 150ms ease,
-    color 150ms ease,
-    border-color 150ms ease;
 }
 
 .progress-step.complete {
-  border-color: rgba(184, 255, 60, 0.5);
+  border-color: rgba(184, 255, 60, 0.48);
+
   background: rgba(184, 255, 60, 0.1);
+
   color: var(--edera-lime);
 }
 
 .progress-step.current {
-  border-color: rgba(0, 229, 212, 0.65);
-  background: rgba(0, 229, 212, 0.11);
+  border-color: rgba(0, 229, 212, 0.6);
+
+  background: rgba(0, 229, 212, 0.1);
+
   color: var(--edera-cyan);
 }
 
@@ -436,8 +473,12 @@ input {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    320px;
+
+  gap: 15px;
 
   align-items: stretch;
 }
@@ -446,32 +487,55 @@ input {
 /* Terminal                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/*
+ * IMPORTANT:
+ *
+ * The terminal is a three-row CSS grid:
+ *
+ *   48px  -> title bar
+ *   1fr   -> scrolling output
+ *   58px  -> fixed command bar
+ *
+ * This prevents the command line from floating somewhere inside the
+ * terminal when the output gets taller.
+ */
+
 .terminal-panel {
+  display: grid;
+
+  grid-template-rows:
+    48px
+    minmax(0, 1fr)
+    58px;
+
   min-width: 0;
-
-  display: flex;
-  flex-direction: column;
-
   min-height: 0;
 
+  height: 590px;
+
   border: 1px solid rgba(0, 229, 212, 0.28);
-  border-radius: 18px;
+  border-radius: 17px;
 
   background: var(--terminal);
 
-  box-shadow: var(--shadow-terminal);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.28);
 
   overflow: hidden;
 }
 
 .terminal-titlebar {
   display: grid;
-  grid-template-columns: 70px 1fr auto;
+
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+
   align-items: center;
+
   gap: 12px;
 
-  min-height: 48px;
-  padding: 0 16px;
+  min-width: 0;
+
+  padding: 0 15px;
 
   border-bottom: 1px solid var(--terminal-line);
 
@@ -479,7 +543,7 @@ input {
     linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.025),
-      rgba(255, 255, 255, 0)
+      transparent
     ),
     var(--terminal-deep);
 
@@ -488,64 +552,82 @@ input {
 
 .terminal-window-controls {
   display: flex;
+
   gap: 6px;
 }
 
 .terminal-window-controls span {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 
-  border: 1px solid rgba(223, 247, 240, 0.22);
+  border: 1px solid rgba(223, 247, 240, 0.25);
   border-radius: 50%;
 }
 
 .terminal-title {
   min-width: 0;
 
-  color: var(--edera-muted);
-
-  font-size: 10px;
-  white-space: nowrap;
   overflow: hidden;
+
+  color: #80aaa5;
+
+  font-size: 9px;
+
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.terminal-lock {
+.terminal-live-dot {
+  display: inline-block;
+
+  width: 5px;
+  height: 5px;
+
   margin-right: 6px;
-  color: var(--edera-cyan);
+
+  border-radius: 50%;
+
+  background: var(--edera-cyan);
 }
 
 .terminal-live {
   color: var(--edera-lime);
 
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+
+  letter-spacing: 0.12em;
 }
 
+/*
+ * min-height: 0 is important here.
+ *
+ * Without it, the flex/grid item can refuse to shrink and the input bar
+ * can appear to move or get pushed around as terminal output grows.
+ */
+
 .terminal-output {
-  height: 510px;
-  max-height: 510px;
+  min-height: 0;
 
   overflow-y: auto;
   overflow-x: hidden;
 
-  padding: 20px 20px 18px;
+  padding: 22px 20px;
 
   color: var(--terminal-text);
 
   font:
-    12px / 1.52 var(--font-mono);
+    11px / 1.55 var(--font-mono);
+
+  scrollbar-width: thin;
 
   scrollbar-color:
     rgba(0, 229, 212, 0.28)
     transparent;
-
-  scrollbar-width: thin;
 }
 
 .terminal-output::-webkit-scrollbar {
-  width: 8px;
+  width: 7px;
 }
 
 .terminal-output::-webkit-scrollbar-track {
@@ -553,34 +635,29 @@ input {
 }
 
 .terminal-output::-webkit-scrollbar-thumb {
-  border-radius: 99px;
-  background: rgba(0, 229, 212, 0.25);
+  border-radius: 999px;
+
+  background: rgba(0, 229, 212, 0.23);
 }
 
-.terminal-line {
+.terminal-entry {
   margin: 0 0 9px;
 
-  color: var(--terminal-text);
-
-  font: inherit;
-  line-height: 1.52;
+  font:
+    11px / 1.55 var(--font-mono);
 
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .terminal-command {
-  margin-top: 15px;
-  margin-bottom: 5px;
+  margin-top: 17px;
+  margin-bottom: 6px;
 
   color: var(--edera-cyan);
 }
 
-.terminal-command::first-line {
-  color: var(--edera-cyan);
-}
-
-.terminal-response {
+.terminal-output-text {
   color: var(--terminal-text);
 }
 
@@ -592,64 +669,89 @@ input {
   color: var(--edera-danger);
 }
 
-.terminal-danger {
-  color: var(--edera-danger);
+/* Welcome screen */
+
+.terminal-welcome {
+  max-width: 680px;
 }
 
-.terminal-system {
-  color: var(--edera-cyan);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.terminal-muted {
-  color: #79a7a1;
-}
-
-.terminal-ascii {
-  margin: 0 0 12px;
-
-  color: var(--edera-cyan);
-
-  font:
-    700 8px / 1.05 var(--font-mono);
-
-  white-space: pre;
-}
-
-.terminal-brand-mark {
+.terminal-welcome-brand {
   margin-bottom: 4px;
 
   color: var(--edera-white);
 
-  font-size: 27px;
+  font-size: 25px;
   font-weight: 700;
+
   letter-spacing: -0.06em;
 }
 
-.terminal-divider {
+.terminal-welcome-title {
+  color: var(--edera-cyan);
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 0.08em;
+}
+
+.terminal-welcome-subtitle {
+  margin-top: 3px;
+
+  color: #6e9a94;
+
+  font-size: 9px;
+}
+
+.terminal-welcome p {
+  margin: 0 0 8px;
+
+  color: #c5e5df;
+}
+
+.terminal-rule {
+  width: 100%;
   height: 1px;
 
-  margin: 14px 0;
+  margin: 15px 0;
 
   background: rgba(0, 229, 212, 0.12);
 }
 
-.command-highlight {
+.terminal-hint {
+  color: #6e9a94;
+}
+
+.terminal-hint span {
   color: var(--edera-cyan);
 }
+
+/*
+ * Fixed command bar.
+ *
+ * There is deliberately NO fake blinking cursor here.
+ * The browser's normal input caret is the cursor.
+ */
 
 .terminal-input {
   display: flex;
   align-items: center;
-  gap: 9px;
 
+  min-width: 0;
   min-height: 58px;
-  padding: 11px 16px;
 
-  border-top: 1px solid var(--terminal-line);
+  margin: 0;
+  padding: 0 16px;
 
-  background: var(--terminal-deep);
+  border-top: 1px solid rgba(0, 229, 212, 0.2);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 229, 212, 0.025),
+      transparent
+    ),
+    #002a28;
 
   font-family: var(--font-mono);
 }
@@ -657,51 +759,50 @@ input {
 .terminal-prompt {
   flex: 0 0 auto;
 
+  margin-right: 9px;
+
   color: var(--edera-cyan);
 
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1;
+
   white-space: nowrap;
 }
 
 .terminal-input input {
-  min-width: 0;
+  flex: 1 1 auto;
+
   width: 100%;
+  min-width: 0;
 
-  border: 0;
-  outline: 0;
+  height: 34px;
 
+  margin: 0;
   padding: 0;
 
+  border: 0;
+  outline: none;
+
   background: transparent;
+
   color: var(--edera-white);
 
   font:
-    11px / 1.4 var(--font-mono);
+    11px / 34px var(--font-mono);
+
+  caret-color: var(--edera-cyan);
 }
 
-.terminal-input input::selection {
-  background: rgba(0, 229, 212, 0.3);
+.terminal-input input:focus {
+  outline: none;
+}
+
+.terminal-input input::placeholder {
+  color: rgba(168, 207, 202, 0.35);
 }
 
 .terminal-input input:disabled {
-  opacity: 0.55;
-}
-
-.terminal-cursor {
-  flex: 0 0 auto;
-
-  width: 6px;
-  height: 15px;
-
-  background: var(--edera-cyan);
-
-  animation: terminal-blink 1.05s steps(2, jump-none) infinite;
-}
-
-@keyframes terminal-blink {
-  50% {
-    opacity: 0;
-  }
+  opacity: 0.5;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -711,19 +812,21 @@ input {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+
+  gap: 15px;
 
   min-width: 0;
 }
 
 .card {
   border: 1px solid var(--edera-line);
-  border-radius: 18px;
+  border-radius: 17px;
 
   background: var(--edera-mint);
   color: var(--edera-ink);
 
-  box-shadow: var(--shadow-panel);
+  box-shadow:
+    0 17px 42px rgba(0, 20, 19, 0.15);
 
   overflow: hidden;
 }
@@ -731,16 +834,17 @@ input {
 .status-card,
 .objectives-card,
 .boundary-card {
-  padding: 20px;
+  padding: 19px;
 }
 
 .card-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
 
-  margin-bottom: 16px;
+  gap: 12px;
+
+  margin-bottom: 15px;
 }
 
 .card-heading h3 {
@@ -748,16 +852,17 @@ input {
 
   color: var(--edera-ink);
 
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.15;
-  letter-spacing: -0.03em;
+
+  letter-spacing: -0.035em;
 }
 
 .status-dot {
   flex: 0 0 auto;
 
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
 
   margin-top: 3px;
 
@@ -766,26 +871,33 @@ input {
 
 .status-dot.active {
   background: var(--edera-cyan);
-  box-shadow: 0 0 0 5px rgba(0, 229, 212, 0.11);
+
+  box-shadow:
+    0 0 0 5px rgba(0, 229, 212, 0.1);
 }
 
 .status-dot.safe {
   background: var(--edera-lime);
-  box-shadow: 0 0 0 5px rgba(184, 255, 60, 0.14);
+
+  box-shadow:
+    0 0 0 5px rgba(184, 255, 60, 0.12);
 }
 
 .status-dot.danger {
   background: var(--edera-danger);
-  box-shadow: 0 0 0 5px rgba(255, 115, 115, 0.12);
+
+  box-shadow:
+    0 0 0 5px rgba(255, 115, 115, 0.11);
 }
 
 .status-detail {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
 
-  padding: 11px 0;
+  gap: 10px;
+
+  padding: 10px 0;
 
   border-top: 1px solid var(--edera-line);
 }
@@ -794,8 +906,9 @@ input {
   color: var(--edera-teal-2);
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
+
   letter-spacing: 0.1em;
 }
 
@@ -803,8 +916,9 @@ input {
   color: var(--edera-ink);
 
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   text-align: right;
 }
 
@@ -820,15 +934,16 @@ input {
 .objective {
   display: flex;
   align-items: center;
-  gap: 10px;
 
-  min-height: 39px;
+  gap: 9px;
+
+  min-height: 38px;
 
   border-top: 1px solid var(--edera-line);
 
-  color: #5c7f7a;
+  color: #6b8d88;
 
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .objective-marker {
@@ -840,20 +955,22 @@ input {
 
   border-radius: 50%;
 
-  color: #86a8a3;
+  color: #8ba9a5;
 
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
 }
 
 .objective.current {
   color: var(--edera-ink);
+
   font-weight: 600;
 }
 
 .objective.current .objective-marker {
-  background: rgba(0, 229, 212, 0.11);
+  background: rgba(0, 229, 212, 0.1);
+
   color: var(--edera-teal-2);
 }
 
@@ -863,11 +980,12 @@ input {
 
 .objective.complete .objective-marker {
   background: rgba(184, 255, 60, 0.18);
-  color: var(--edera-teal);
+
+  color: #4c7700;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Boundary card                                                              */
+/* Boundary model                                                             */
 /* -------------------------------------------------------------------------- */
 
 .boundary-stack {
@@ -878,17 +996,18 @@ input {
 .boundary-layer {
   display: flex;
   align-items: center;
-  gap: 12px;
 
-  padding: 10px 0;
+  gap: 11px;
+
+  padding: 9px 0;
 }
 
 .layer-number {
   display: grid;
   place-items: center;
 
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
 
   border-radius: 7px;
 
@@ -897,7 +1016,7 @@ input {
   color: var(--edera-teal-2);
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
 }
 
@@ -906,7 +1025,7 @@ input {
 
   color: var(--edera-ink);
 
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .boundary-layer small {
@@ -914,33 +1033,38 @@ input {
 
   margin-top: 2px;
 
-  color: #668a84;
+  color: #6c8e89;
 
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .boundary-line {
   width: 1px;
-  height: 16px;
+  height: 15px;
 
   margin-left: 12px;
 
-  background: rgba(0, 72, 69, 0.18);
+  background: rgba(0, 72, 69, 0.16);
 }
 
 .boundary-line.lit {
   background: var(--edera-cyan);
-  box-shadow: 0 0 7px rgba(0, 229, 212, 0.35);
+
+  box-shadow:
+    0 0 7px rgba(0, 229, 212, 0.35);
 }
 
 .boundary-line.warning {
   background: var(--edera-warning);
-  box-shadow: 0 0 7px rgba(255, 209, 102, 0.28);
+
+  box-shadow:
+    0 0 7px rgba(255, 209, 102, 0.28);
 }
 
 .danger-layer .layer-number {
   background: rgba(255, 115, 115, 0.14);
-  color: #c34e4e;
+
+  color: #a84444;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -951,40 +1075,51 @@ input {
   display: inline-flex;
   align-items: center;
 
-  min-height: 23px;
-  padding: 0 9px;
+  min-height: 22px;
+
+  padding: 0 8px;
 
   border: 1px solid transparent;
   border-radius: 999px;
 
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 6px;
   font-weight: 700;
-  letter-spacing: 0.09em;
+
+  letter-spacing: 0.1em;
+
   white-space: nowrap;
 }
 
 .status-neutral {
-  border-color: rgba(0, 90, 87, 0.18);
-  background: rgba(0, 90, 87, 0.06);
+  border-color: rgba(0, 90, 87, 0.17);
+
+  background: rgba(0, 90, 87, 0.05);
+
   color: var(--edera-teal);
 }
 
 .status-warning {
   border-color: rgba(184, 132, 0, 0.2);
-  background: rgba(255, 209, 102, 0.18);
-  color: #8b6800;
+
+  background: rgba(255, 209, 102, 0.17);
+
+  color: #806100;
 }
 
 .status-danger {
   border-color: rgba(190, 60, 60, 0.2);
+
   background: rgba(255, 115, 115, 0.14);
+
   color: #a43f3f;
 }
 
 .status-safe {
   border-color: rgba(72, 125, 0, 0.22);
-  background: rgba(184, 255, 60, 0.19);
+
+  background: rgba(184, 255, 60, 0.18);
+
   color: #426f00;
 }
 
@@ -993,28 +1128,30 @@ input {
 /* -------------------------------------------------------------------------- */
 
 .architecture-panel {
-  margin-top: 16px;
+  margin-top: 15px;
 }
 
 .architecture {
-  padding: 24px;
+  padding: 23px;
 
   border: 1px solid var(--edera-line);
-  border-radius: 18px;
+  border-radius: 17px;
 
   background: var(--edera-mint);
   color: var(--edera-ink);
 
-  box-shadow: var(--shadow-panel);
+  box-shadow:
+    0 17px 42px rgba(0, 20, 19, 0.15);
 }
 
 .architecture-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
 
-  margin-bottom: 22px;
+  gap: 15px;
+
+  margin-bottom: 20px;
 }
 
 .architecture-header h3 {
@@ -1022,9 +1159,10 @@ input {
 
   color: var(--edera-ink);
 
-  font-size: 21px;
+  font-size: 20px;
   line-height: 1.1;
-  letter-spacing: -0.035em;
+
+  letter-spacing: -0.04em;
 }
 
 .zone-diagram {
@@ -1035,8 +1173,11 @@ input {
 
 .arch-tenant-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 9px;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 8px;
 
   width: 100%;
 }
@@ -1044,42 +1185,43 @@ input {
 .arch-workload {
   min-width: 0;
 
-  padding: 12px 13px;
+  padding: 11px 12px;
 
-  border: 1px solid rgba(0, 72, 69, 0.16);
-  border-radius: 11px;
+  border: 1px solid rgba(0, 72, 69, 0.15);
+  border-radius: 10px;
 
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.4);
 
   color: var(--edera-ink);
 
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
 }
 
 .arch-workload small {
   display: block;
 
-  margin-top: 5px;
+  margin-top: 4px;
 
-  color: #6a8c87;
+  color: #6b8d88;
 
   font-family: var(--font-body);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
 }
 
 .arch-workload.compromised {
-  border-color: rgba(255, 115, 115, 0.38);
-  background: rgba(255, 115, 115, 0.08);
+  border-color: rgba(255, 115, 115, 0.36);
+
+  background: rgba(255, 115, 115, 0.07);
 }
 
 .node-dot {
   display: inline-block;
 
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 
   margin-right: 6px;
 
@@ -1090,37 +1232,41 @@ input {
 
 .node-dot.safe {
   background: var(--edera-lime);
-  box-shadow: 0 0 0 3px rgba(184, 255, 60, 0.12);
+
+  box-shadow:
+    0 0 0 3px rgba(184, 255, 60, 0.12);
 }
 
 .node-dot.danger {
   background: var(--edera-danger);
-  box-shadow: 0 0 0 3px rgba(255, 115, 115, 0.11);
+
+  box-shadow:
+    0 0 0 3px rgba(255, 115, 115, 0.11);
 }
 
 .arch-connector {
   width: 1px;
-  height: 32px;
+  height: 30px;
 
-  background: rgba(0, 90, 87, 0.22);
+  background: rgba(0, 90, 87, 0.2);
 }
 
 .safe-connector {
-  background: rgba(77, 132, 0, 0.35);
+  background: rgba(77, 132, 0, 0.32);
 }
 
 .danger-connector {
-  background: rgba(190, 60, 60, 0.38);
+  background: rgba(190, 60, 60, 0.36);
 }
 
 .kernel-box,
 .arch-box {
   width: min(100%, 520px);
 
-  padding: 17px 20px;
+  padding: 16px 19px;
 
-  border: 1px solid rgba(0, 90, 87, 0.2);
-  border-radius: 13px;
+  border: 1px solid rgba(0, 90, 87, 0.19);
+  border-radius: 12px;
 
   background: var(--edera-mint-2);
 
@@ -1128,31 +1274,34 @@ input {
 }
 
 .kernel-box.compromised {
-  border-color: rgba(255, 115, 115, 0.4);
-  background: rgba(255, 115, 115, 0.09);
+  border-color: rgba(255, 115, 115, 0.38);
+
+  background: rgba(255, 115, 115, 0.08);
 }
 
 .isolated-box {
   border-color: rgba(96, 145, 0, 0.3);
-  background: rgba(184, 255, 60, 0.09);
+
+  background: rgba(184, 255, 60, 0.08);
 }
 
 .arch-box-title {
   color: var(--edera-teal);
 
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+
   letter-spacing: 0.06em;
 }
 
 .arch-box-meta {
   margin-top: 5px;
 
-  color: #6a8c87;
+  color: #6b8d88;
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
 }
 
 .kernel-box.compromised .arch-box-title {
@@ -1164,95 +1313,102 @@ input {
   flex-direction: column;
   align-items: center;
 
-  margin-top: 18px;
-  padding: 11px 20px;
+  margin-top: 16px;
+  padding: 9px 18px;
 
-  border: 1px solid rgba(255, 115, 115, 0.28);
+  border: 1px solid rgba(255, 115, 115, 0.27);
   border-radius: 999px;
 
-  background: rgba(255, 115, 115, 0.08);
+  background: rgba(255, 115, 115, 0.07);
 
   color: #a84444;
 }
 
 .blast-radius span {
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 6px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+
+  letter-spacing: 0.11em;
 }
 
 .blast-radius strong {
   margin-top: 3px;
 
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .safe-zone {
   display: inline-flex;
   align-items: center;
+
   gap: 7px;
 
-  margin-top: 18px;
-  padding: 10px 15px;
+  margin-top: 16px;
+  padding: 9px 14px;
 
-  border: 1px solid rgba(96, 145, 0, 0.26);
+  border: 1px solid rgba(96, 145, 0, 0.25);
   border-radius: 999px;
 
-  background: rgba(184, 255, 60, 0.09);
+  background: rgba(184, 255, 60, 0.08);
 
   color: #426f00;
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
 }
 
 .comparison-row {
   display: grid;
+
   grid-template-columns: 1fr auto 1fr;
+
   align-items: center;
-  gap: 14px;
+
+  gap: 13px;
 }
 
 .comparison-card {
-  min-height: 110px;
+  min-height: 105px;
 
   display: flex;
   flex-direction: column;
   justify-content: center;
 
-  padding: 18px;
+  padding: 17px;
 
   border: 1px solid var(--edera-line);
-  border-radius: 13px;
+  border-radius: 12px;
 }
 
 .comparison-card strong {
-  margin: 6px 0;
+  margin: 5px 0;
 
   color: var(--edera-ink);
 
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .comparison-card span {
   color: #698b86;
 
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.45;
 }
 
 .comparison-label {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
+
   letter-spacing: 0.1em;
 }
 
 .comparison-risk {
-  border-color: rgba(255, 115, 115, 0.28);
-  background: rgba(255, 115, 115, 0.06);
+  border-color: rgba(255, 115, 115, 0.27);
+
+  background: rgba(255, 115, 115, 0.055);
 }
 
 .comparison-risk .comparison-label {
@@ -1261,7 +1417,8 @@ input {
 
 .comparison-safe {
   border-color: rgba(96, 145, 0, 0.25);
-  background: rgba(184, 255, 60, 0.08);
+
+  background: rgba(184, 255, 60, 0.075);
 }
 
 .comparison-safe .comparison-label {
@@ -1271,7 +1428,7 @@ input {
 .comparison-arrow {
   color: var(--edera-teal-2);
 
-  font-size: 22px;
+  font-size: 20px;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1280,15 +1437,17 @@ input {
 
 .lower-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
 
-  margin-top: 16px;
+  grid-template-columns: 1fr 1fr;
+
+  gap: 15px;
+
+  margin-top: 15px;
 }
 
 .guide-card,
 .isolation-card {
-  padding: 23px 24px;
+  padding: 21px 22px;
 }
 
 .guide-card h3,
@@ -1297,8 +1456,9 @@ input {
 
   color: var(--edera-ink);
 
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.15;
+
   letter-spacing: -0.035em;
 }
 
@@ -1310,52 +1470,55 @@ input {
 
   color: #5b7e79;
 
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.6;
 }
 
 .command-hints {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
 
-  margin-top: 16px;
+  gap: 6px;
+
+  margin-top: 14px;
 }
 
 .command-hints code {
-  padding: 6px 8px;
+  padding: 5px 7px;
 
   border: 1px solid rgba(0, 90, 87, 0.15);
-  border-radius: 7px;
+  border-radius: 6px;
 
   background: rgba(0, 90, 87, 0.045);
 
   color: var(--edera-teal);
 
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 7px;
 }
 
 .isolation-callout {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
 
-  margin-top: 16px;
-  padding: 11px 13px;
+  gap: 9px;
+
+  margin-top: 14px;
+  padding: 10px 12px;
 
   border-left: 3px solid var(--edera-cyan);
 
-  background: rgba(0, 229, 212, 0.055);
+  background: rgba(0, 229, 212, 0.05);
 
   color: var(--edera-teal);
 
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.5;
 }
 
 .callout-mark {
   color: var(--edera-teal-2);
+
   font-family: var(--font-mono);
   font-weight: 700;
 }
@@ -1367,15 +1530,17 @@ input {
 .footer {
   display: flex;
   justify-content: space-between;
+
   gap: 20px;
 
-  padding: 22px 4px 6px;
+  padding: 20px 3px 5px;
 
-  color: rgba(168, 207, 202, 0.62);
+  color: rgba(168, 207, 202, 0.56);
 
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 6px;
   font-weight: 700;
+
   letter-spacing: 0.11em;
 }
 
@@ -1385,14 +1550,15 @@ input {
 
 * {
   scrollbar-width: thin;
+
   scrollbar-color:
-    rgba(0, 229, 212, 0.28)
+    rgba(0, 229, 212, 0.24)
     transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 *::-webkit-scrollbar-track {
@@ -1400,8 +1566,9 @@ input {
 }
 
 *::-webkit-scrollbar-thumb {
-  border-radius: 99px;
-  background: rgba(0, 229, 212, 0.22);
+  border-radius: 999px;
+
+  background: rgba(0, 229, 212, 0.2);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1410,15 +1577,9 @@ input {
 
 @media (max-width: 1050px) {
   .workspace {
-    grid-template-columns: minmax(0, 1fr) 285px;
-  }
-
-  .topbar {
-    grid-template-columns: auto 1fr;
-  }
-
-  .topbar-status {
-    display: none;
+    grid-template-columns:
+      minmax(0, 1fr)
+      285px;
   }
 
   .mission {
@@ -1427,21 +1588,24 @@ input {
 
   .mission-meta {
     display: grid;
+
     grid-template-columns: repeat(3, 1fr);
 
     padding-left: 0;
 
-    border-left: 0;
     border-top: 1px solid var(--edera-line);
+    border-left: 0;
   }
 
   .meta-item {
-    padding: 13px 12px 2px 0;
+    padding: 12px 12px 0 0;
+
     border-bottom: 0;
   }
 
   .meta-item + .meta-item {
     padding-left: 12px;
+
     border-left: 1px solid var(--edera-line);
   }
 }
@@ -1454,23 +1618,15 @@ input {
   .topbar {
     width: calc(100% - 36px);
 
-    margin-top: 16px;
+    grid-template-columns: auto 1fr;
+
+    margin-top: 12px;
 
     border-radius: 20px;
-
-    padding: 15px 17px;
   }
 
-  .brand {
-    gap: 7px;
-  }
-
-  .brand-subtitle {
+  .topbar-status {
     display: none;
-  }
-
-  .challenge-title {
-    text-align: right;
   }
 
   .workspace {
@@ -1479,46 +1635,47 @@ input {
 
   .sidebar {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
   }
 
   .boundary-card {
     grid-column: span 2;
   }
 
-  .terminal-output {
-    height: 470px;
-    max-height: 470px;
+  .terminal-panel {
+    height: 560px;
   }
 
   .progress-strip {
     align-items: flex-start;
+
     flex-direction: column;
-    gap: 12px;
+
+    gap: 11px;
   }
 
   .progress-track {
     width: 100%;
+
     justify-content: space-between;
   }
 
-  .progress-step {
-    width: 28px;
-    height: 28px;
+  .arch-tenant-row {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
   }
 
   .lower-grid {
     grid-template-columns: 1fr;
-  }
-
-  .arch-tenant-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 600px) {
   .topbar {
     grid-template-columns: 1fr;
+
     gap: 8px;
   }
 
@@ -1547,10 +1704,6 @@ input {
     border-bottom: 1px solid var(--edera-line);
   }
 
-  .meta-item:last-child {
-    border-bottom: 0;
-  }
-
   .sidebar {
     display: flex;
   }
@@ -1559,33 +1712,35 @@ input {
     grid-column: auto;
   }
 
-  .terminal-titlebar {
-    grid-template-columns: 56px 1fr auto;
+  .terminal-panel {
+    height: 520px;
+
+    grid-template-rows:
+      46px
+      minmax(0, 1fr)
+      64px;
   }
 
   .terminal-output {
-    height: 430px;
-    max-height: 430px;
-
-    padding: 16px;
+    padding: 17px 15px;
   }
 
   .terminal-input {
-    align-items: flex-start;
-    flex-wrap: wrap;
+    align-items: center;
 
-    padding: 11px 13px;
+    padding: 0 12px;
   }
 
   .terminal-prompt {
-    width: 100%;
+    max-width: 48%;
 
     overflow: hidden;
+
     text-overflow: ellipsis;
   }
 
   .terminal-input input {
-    width: calc(100% - 20px);
+    font-size: 10px;
   }
 
   .arch-tenant-row {
@@ -1597,12 +1752,14 @@ input {
   }
 
   .comparison-arrow {
-    transform: rotate(90deg);
     justify-self: center;
+
+    transform: rotate(90deg);
   }
 
   .footer {
     flex-direction: column;
+
     gap: 6px;
   }
 }
