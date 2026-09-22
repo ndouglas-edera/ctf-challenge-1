@@ -1048,7 +1048,7 @@ function renderObjectives(): string {
     <section class="card objectives-card">
       <div class="card-heading">
         <span class="eyebrow">INVESTIGATION</span>
-        <h3>Objectives</h3>
+        <!--<h3>Objectives</h3>-->
       </div>
 
       <div class="objectives">
@@ -1256,7 +1256,7 @@ function render(): void {
             </p>
 
             <p>
-              Do not assume the container is the final boundary. <br/>
+              Do not assume the container is the final boundary.
               Investigate the execution environment, inspect the kernel,
               measure the blast radius, and compare it with isolated execution.
             </p>
@@ -1321,7 +1321,7 @@ function render(): void {
                 <span class="status-light"></span>
               </div>
 
-              <h3>${phaseLabel().split(" / ")[1]}</h3>
+              <!--<h3>${phaseLabel().split(" / ")[1]}</h3>-->
 
               <div class="status-stat">
                 <span>COMMANDS</span>
