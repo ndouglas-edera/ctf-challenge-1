@@ -645,6 +645,25 @@ a {
   overflow-x: auto;
 }
 
+/* -------------------------------------------------------------------------- */
+/* kubectl output styling                                                     */
+/* -------------------------------------------------------------------------- */
+
+.terminal-status-running {
+  color: var(--edera-lime);
+  font-weight: 700;
+}
+
+.terminal-status-creating {
+  color: var(--edera-warning);
+  font-weight: 700;
+}
+
+.terminal-runtime-missing {
+  color: var(--edera-danger);
+  font-weight: 700;
+}
+
 .terminal-link {
   color: var(--edera-lime);
   text-decoration: underline;
