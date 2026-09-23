@@ -342,17 +342,17 @@ const stages: Stage[] = [
     ],
   },
   {
-    title: "Shared kernel",
-    objective: "Prove which kernel that workload is running on.",
+    title: "Launch a zoned workload",
+    objective: "Create a zone, launch nginx into it, and follow its zone logs.",
     brief: [
-      "Compare the kernel inside a zone with the kernel that pod",
-      "sees. Submit the kernel version it shares with the host.",
+      "Create a zone named my-zone, launch web with nginx:latest",
+      "into it, list the workload, then follow the zone logs.",
     ],
-    answers: [NODE.kernelVersion, "6.1.0"],
-    flag: "EDERA{PRIVILEGED_WITHOUT_A_ZONE}",
+    answers: [],
+    flag: "EDERA{ZONE_WORKLOAD_LAUNCH}",
     reward: [
-      "Same kernel as the node, with privileged set to true.",
-      "There is no boundary left between that container and the host.",
+      "The workload is running inside its own Edera zone.",
+      "The final flag was emitted by the zone log stream.",
     ],
   },
 ];
@@ -438,6 +438,16 @@ function terminalKubectlText(value: string): string {
   );
 
   output = output.replace(
+    /(^|[ \t])(ready)(?=[ \t]|$)/gm,
+    '$1<span class="terminal-zone-ready">$2</span>',
+  );
+
+  output = output.replace(
+    /(^|[ \t])(failed)(?=[ \t]|$)/gm,
+    '$1<span class="terminal-zone-failed">$2</span>',
+  );
+
+  output = output.replace(
     /(^|\n)(runtimeClassName:\s+&lt;none&gt;)(?=\n|$)/g,
     '$1<span class="terminal-runtime-missing">$2</span>',
   );
@@ -520,8 +530,12 @@ const helpSections: HelpSection[] = [
         description: "Inspect a zone as formatted JSON.",
       },
       {
-        command: "protect zone logs <name>",
-        description: "Read the logs associated with a zone.",
+        command: "protect zone create <name>",
+        description: "Create a ready Edera zone for a workload.",
+      },
+      {
+        command: "protect zone logs <name> [--follow]",
+        description: "Read zone logs, optionally following the live stream.",
       },
       {
         command: "protect image list [--output table]",
@@ -532,8 +546,12 @@ const helpSections: HelpSection[] = [
         description: "List the kernel variants available to Edera zones.",
       },
       {
-        command: "protect workload list",
-        description: "List workloads known to Edera Protect.",
+        command: "protect workload list [--selector status.state=running]",
+        description: "List workloads, optionally filtered by state.",
+      },
+      {
+        command: "protect workload launch --zone <zone> --name <name> <image>",
+        description: "Launch an image into an Edera zone.",
       },
       {
         command: "protect workload exec <name> <command>",
@@ -1499,10 +1517,12 @@ function protectUsage(): string {
     "",
     "  protect zone list [--selector status.state=<state>]",
     "  protect zone list <name> --output json-pretty",
-    "  protect zone logs <name>",
+    "  protect zone create <name>",
+    "  protect zone logs <name> [--follow]",
     "  protect image list [--output table]",
     "  protect image list-kernel-variants",
-    "  protect workload list",
+    "  protect workload list [--selector status.state=running]",
+    "  protect workload launch --zone <zone> --name <name> <image>",
     "  protect workload exec <name> <command>",
     "  protect host status",
   ].join("\n");
@@ -1568,7 +1588,103 @@ function zoneList(input: string, name: string | undefined): string {
   ].join("\n");
 }
 
-function zoneLogs(name: string | undefined): string {
+function zoneCreate(name: string | undefined): string {
+  if (!name || name.startsWith("-")) {
+    return "usage: protect zone create <name>";
+  }
+
+  if (findZone(name)) {
+    return `error: zone "${name}" already exists`;
+  }
+
+  const zone: Zone = {
+    name,
+    id: `z-${Math.random().toString(16).slice(2, 8)}`,
+    state: "ready",
+    cpus: 2,
+    memory: "2048MB",
+    kernel: ZONE_KERNEL,
+    pod: "",
+  };
+
+  zones.push(zone);
+
+  return [
+    `zone/${zone.name} created`,
+    `id: ${zone.id}`,
+    `state: ${zone.state}`,
+    `cpus: ${zone.cpus}`,
+    `memory: ${zone.memory}`,
+  ].join("\n");
+}
+
+function workloadLaunch(input: string): string {
+  const zoneMatch = /--zone\s+(\S+)/.exec(input);
+  const nameMatch = /--name\s+(\S+)/.exec(input);
+  const imageMatch = /(?:^|\s)([^\s]+)(?:\s*)$/.exec(input.trim());
+
+  const zoneName = zoneMatch?.[1];
+  const workloadName = nameMatch?.[1];
+  const image = imageMatch?.[1];
+
+  if (!zoneName || !workloadName || !image || image === workloadName) {
+    return "usage: protect workload launch --zone <zone> --name <name> <image>";
+  }
+
+  if (findPod(workloadName)) {
+    return `error: workload "${workloadName}" already exists`;
+  }
+
+  let zone = findZone(zoneName);
+
+  if (!zone) {
+    zone = {
+      name: zoneName,
+      id: `z-${Math.random().toString(16).slice(2, 8)}`,
+      state: "ready",
+      cpus: 2,
+      memory: "2048MB",
+      kernel: ZONE_KERNEL,
+      pod: workloadName,
+    };
+    zones.push(zone);
+  } else if (zone.state !== "ready") {
+    return `error: zone "${zoneName}" is not ready`;
+  } else if (zone.pod) {
+    return `error: zone "${zoneName}" already has workload "${zone.pod}"`;
+  } else {
+    zone.pod = workloadName;
+  }
+
+  const pod: Pod = {
+    name: workloadName,
+    namespace: "default",
+    app: workloadName,
+    node: NODE.name,
+    status: "Running",
+    privileged: false,
+    runtimeClass: "edera",
+    annotations: {
+      "dev.edera/kernel": zone.kernel,
+      "dev.edera/initial-memory-request": "2048",
+    },
+    zone: zone.name,
+    image,
+  };
+
+  pods.push(pod);
+  virtualFiles[`/home/platform/manifests/${pod.name}.yaml`] = manifestFor(pod);
+  directories.add("/home/platform/manifests");
+
+  return [
+    `workload/${pod.name} launched`,
+    `zone: ${zone.name}`,
+    `image: ${pod.image}`,
+    `state: ${pod.status.toLowerCase()}`,
+  ].join("\n");
+}
+
+function zoneLogs(name: string | undefined, follow: boolean): string {
   if (!name) {
     return "error: zone name may not be empty";
   }
@@ -1580,11 +1696,32 @@ function zoneLogs(name: string | undefined): string {
   }
 
   if (zone.state === "ready") {
-    return [
+    const lines = [
       `[zone ${zone.name}] booting ${zone.kernel}`,
       `[zone ${zone.name}] ${zone.cpus} vcpu, ${zone.memory}`,
       `[zone ${zone.name}] zone ready`,
-    ].join("\n");
+    ];
+
+    if (zone.pod) {
+      const pod = findPod(zone.pod);
+      if (pod) {
+        lines.push(`[zone ${zone.name}] workload ${pod.name} running image ${pod.image}`);
+      }
+    }
+
+    if (follow && zone.name === "my-zone" && zone.pod === "web" && currentStage()?.title === "Launch a zoned workload") {
+      lines.push("[zone my-zone] following logs for workload web");
+      lines.push("[zone my-zone] nginx: worker process started");
+      lines.push("[zone my-zone] GET / HTTP/1.1 200");
+      lines.push("");
+      lines.push("FLAG CAPTURED");
+      lines.push("-------------");
+      lines.push("EDERA{ZONE_WORKLOAD_LAUNCH}");
+      state.captured.push("EDERA{ZONE_WORKLOAD_LAUNCH}");
+      state.stage++;
+    }
+
+    return lines.join("\n");
   }
 
   return [
@@ -1627,7 +1764,10 @@ function listKernelVariants(): string {
   ].join("\n");
 }
 
-function workloadList(): string {
+function workloadList(input: string): string {
+  const selector = /--selector\s+status\.state=(\w+)/.exec(input);
+  const requestedState = selector?.[1];
+
   const running = zones
     .filter((zone) => zone.state === "ready")
     .map((zone) => {
@@ -1636,8 +1776,16 @@ function workloadList(): string {
       return [zone.pod, zone.name, "running", pod?.image ?? "unknown"];
     });
 
+  const visible = requestedState
+    ? running.filter((row) => row[2] === requestedState)
+    : running;
+
+  if (visible.length === 0) {
+    return "No workloads matched the selector.";
+  }
+
   return [
-    table(["NAME", "ZONE", "STATE", "IMAGE"], running),
+    table(["NAME", "ZONE", "STATE", "IMAGE"], visible),
     "",
     "Workloads are only visible here when they run inside a zone.",
   ].join("\n");
@@ -1711,7 +1859,8 @@ function protectCli(input: string): string {
 
   if (command === "zone") {
     if (subcommand === "list") return zoneList(input, name);
-    if (subcommand === "logs") return zoneLogs(name);
+    if (subcommand === "create") return zoneCreate(name);
+    if (subcommand === "logs") return zoneLogs(name, input.includes("--follow"));
   }
 
   if (command === "image") {
@@ -1720,7 +1869,8 @@ function protectCli(input: string): string {
   }
 
   if (command === "workload") {
-    if (subcommand === "list") return workloadList();
+    if (subcommand === "list") return workloadList(input);
+    if (subcommand === "launch") return workloadLaunch(input);
     if (subcommand === "exec") return workloadExec(name, input);
   }
 
@@ -1791,8 +1941,8 @@ function submit(value: string): string {
       : [
           "All six flags captured.",
           "",
-          "A privileged container with no runtimeClassName was the finding.",
-          "The RuntimeClass existed. Nothing enforced its use.",
+          "A workload was launched into its own Edera zone.",
+          "The final flag was emitted by the zone log stream.",
           "",
           "Your reward is waiting for you:",
           "https://edera.dev/love",
