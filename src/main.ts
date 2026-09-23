@@ -414,6 +414,40 @@ function terminalText(value: string): string {
   );
 }
 
+function terminalKubectlText(value: string): string {
+  let output = escapeHtml(value);
+
+  /*
+   * Keep kubectl's output as text and add presentation-only markup:
+   * - A missing RuntimeClass is a high-signal finding in this lab, so the
+   *   complete `runtimeClassName:  <none>` line is bold red.
+   * - Common pod lifecycle states get kubecolor-style emphasis.
+   *
+   * The status matches require whitespace around the value so that an
+   * unrelated word containing "Running" or "ContainerCreating" is not
+   * accidentally styled.
+   */
+  output = output.replace(
+    /(^|[ \t])(Running)(?=[ \t]|$)/gm,
+    '$1<span class="terminal-status-running">$2</span>',
+  );
+
+  output = output.replace(
+    /(^|[ \t])(ContainerCreating)(?=[ \t]|$)/gm,
+    '$1<span class="terminal-status-creating">$2</span>',
+  );
+
+  output = output.replace(
+    /(^|\n)(runtimeClassName:\s+&lt;none&gt;)(?=\n|$)/g,
+    '$1<span class="terminal-runtime-missing">$2</span>',
+  );
+
+  return output.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a class="terminal-link" href="$1" target="_blank" rel="noreferrer">$1</a>',
+  );
+}
+
 interface HelpCommand {
   command: string;
   description: string;
@@ -2066,7 +2100,7 @@ function renderTerminalOutput(value: string): string {
   const lines = value.split("\n");
 
   if (lines[0] !== "FLAG CAPTURED" || lines.length < 3) {
-    return `<pre class="terminal-output-block">${terminalText(value)}</pre>`;
+    return `<pre class="terminal-output-block">${terminalKubectlText(value)}</pre>`;
   }
 
   const flag = lines[2].trim();
@@ -2081,7 +2115,7 @@ function renderTerminalOutput(value: string): string {
       <div class="terminal-flag-value">${escapeHtml(flag)}</div>
       ${
         rest
-          ? `<pre class="terminal-output-block terminal-flag-followup">${terminalText(rest)}</pre>`
+          ? `<pre class="terminal-output-block terminal-flag-followup">${terminalKubectlText(rest)}</pre>`
           : ""
       }
     </div>
