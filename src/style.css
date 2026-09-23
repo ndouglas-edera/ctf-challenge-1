@@ -1413,138 +1413,107 @@ a {
 /* -------------------------------------------------------------------------- */
 /* CLI help                                                                   */
 /*                                                                            */
-/* Styled after the Webernetes helper surface. This is intentionally scoped   */
-/* to .cli-help so the existing CTF terminal/output styling remains intact.   */
+/* Compact terminal-native helper. Keep this scoped so the rest of the page  */
+/* retains the original CTF typography and spacing.                           */
 /* -------------------------------------------------------------------------- */
 
 .cli-help {
-  margin: 2px 0 8px;
-  padding: 4px 0;
-
+  margin: 0 0 8px;
+  padding: 0;
   color: var(--edera-white);
   font-family: var(--font-mono);
 }
 
-.cli-help-header {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-
-  border-bottom: 1px solid rgba(0, 229, 212, 0.24);
+.cli-help-intro {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 0 0 9px;
+  border-bottom: 1px solid rgba(0, 229, 212, 0.16);
 }
 
-.cli-help-title {
+.cli-help-intro strong {
   color: var(--edera-cyan);
-
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.3;
+  font: 700 10px / 1.2 var(--font-mono);
+  letter-spacing: 0.12em;
 }
 
-.cli-help-version {
-  margin-top: 4px;
-
-  color: rgba(223, 247, 240, 0.62);
-
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.cli-help-description {
-  max-width: 780px;
-  margin-bottom: 22px;
-
-  color: rgba(223, 247, 240, 0.78);
-
-  font-size: 11px;
-  line-height: 1.6;
+.cli-help-intro span {
+  color: rgba(223, 247, 240, 0.42);
+  font: 9px / 1.3 var(--font-mono);
 }
 
 .cli-help-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-
-  margin-bottom: 22px;
+  margin: 0 0 12px;
 }
 
 .cli-help-section-title {
-  margin-bottom: 5px;
-  padding-bottom: 7px;
-
-  border-bottom: 1px solid rgba(0, 229, 212, 0.22);
-
+  margin: 0;
+  padding: 0 0 5px;
   color: var(--edera-cyan);
-
-  font-size: 10px;
-  font-weight: 700;
+  font: 700 9px / 1.2 var(--font-mono);
   letter-spacing: 0.12em;
-  line-height: 1.4;
-
   text-transform: uppercase;
 }
 
 .cli-help-command {
   display: grid;
-  grid-template-columns:
-    minmax(260px, 0.9fr)
-    minmax(180px, 1.1fr);
-
-  gap: 24px;
-  align-items: start;
-
-  padding: 9px 10px;
-
-  border-bottom: 1px solid rgba(223, 247, 240, 0.08);
-  border-radius: 5px;
-
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(220px, 1.1fr);
+  align-items: baseline;
+  gap: 18px;
+  min-height: 27px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(223, 247, 240, 0.055);
+  border-radius: 4px;
 }
 
 .cli-help-command:hover {
-  background: rgba(0, 229, 212, 0.055);
-  border-color: rgba(0, 229, 212, 0.18);
+  background: rgba(0, 229, 212, 0.04);
 }
 
 .cli-help-command code {
-  display: inline-block;
   min-width: 0;
-
   color: var(--edera-lime);
-
-  font:
-    700 10px / 1.5
-    var(--font-mono);
-
-  white-space: pre-wrap;
+  font: 700 9px / 1.35 var(--font-mono);
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
 .cli-help-command span {
   min-width: 0;
+  color: rgba(223, 247, 240, 0.56);
+  font: 9px / 1.35 var(--font-mono);
+}
 
-  color: rgba(223, 247, 240, 0.72);
+.cli-help-command-link {
+  color: inherit;
+  text-decoration: none;
+}
 
-  font:
-    400 10px / 1.5
-    var(--font-body);
+.cli-help-command-link:hover,
+.cli-help-command-link:focus-visible {
+  color: var(--edera-white);
+  text-decoration: underline;
+  text-decoration-color: var(--edera-cyan);
+  text-underline-offset: 3px;
+  outline: none;
+}
+
+.cli-help-command-link::after {
+  content: " ↗";
+  color: var(--edera-cyan);
+  font-weight: 700;
 }
 
 .cli-help-tip {
-  margin-top: 4px;
-  padding: 12px 14px;
-
+  margin: 2px 0 0;
+  padding: 9px 11px;
   border-left: 2px solid var(--edera-cyan);
-  border-radius: 0 6px 6px 0;
-
-  background: rgba(0, 229, 212, 0.055);
-
-  color: rgba(223, 247, 240, 0.66);
-
-  font:
-    400 9px / 1.5
-    var(--font-body);
+  border-radius: 0 5px 5px 0;
+  background: rgba(0, 229, 212, 0.04);
+  color: rgba(223, 247, 240, 0.52);
+  font: 9px / 1.45 var(--font-mono);
 }
 
 .cli-help-tip strong {
@@ -1558,116 +1527,43 @@ a {
   font-weight: 700;
 }
 
-@media (max-width: 720px) {
-  .cli-help-command {
-    grid-template-columns: 1fr;
-    gap: 3px;
-
-    padding: 9px 6px;
-  }
-
-  .cli-help-command code {
-    font-size: 10px;
-  }
-
-  .cli-help-command span {
-    font-size: 9px;
-  }
-
-  .cli-help-description {
-    font-size: 10px;
-  }
-}
-
 /* -------------------------------------------------------------------------- */
-/* CLI help links                                                              */
-/*                                                                            */
-/* Keep the existing help layout untouched. Links inherit the command styling */
-/* while making the external documentation affordance obvious on hover/focus. */
-/* -------------------------------------------------------------------------- */
-
-.cli-help-command-link {
-  color: inherit;
-  text-decoration: none;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.cli-help-command-link:hover,
-.cli-help-command-link:focus-visible {
-  color: var(--edera-white);
-  text-decoration: underline;
-  text-decoration-color: var(--edera-cyan);
-  outline: none;
-}
-
-.cli-help-command-link::after {
-  content: " ↗";
-  color: var(--edera-cyan);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* Captured flags                                                              */
+/* Captured flags                                                             */
 /* -------------------------------------------------------------------------- */
 
 .terminal-flag-capture {
-  margin: 4px 0 20px;
-  padding: 12px 0 2px;
+  margin: 0 0 16px;
+  padding: 0;
 }
 
 .terminal-flag-banner {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 9px;
-
+  gap: 6px;
+  margin: 0 0 6px;
   color: var(--edera-lime);
-
-  font:
-    700 11px / 1.3
-    var(--font-mono);
-
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 700 10px / 1.3 var(--font-mono);
+  letter-spacing: 0.07em;
 }
 
 .terminal-flag-party {
   display: inline-block;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
-  animation: flag-party-pop 700ms ease-out both;
+  animation: flag-party-pop 500ms ease-out both;
 }
 
 .terminal-flag-value {
   display: inline-block;
-  max-width: 100%;
-  margin-bottom: 11px;
-  padding: 8px 11px;
-
-  border: 1px solid rgba(184, 255, 60, 0.55);
-  border-radius: 6px;
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(184, 255, 60, 0.13),
-      rgba(184, 255, 60, 0.055)
-    );
-
+  margin: 0 0 8px;
+  padding: 4px 7px;
+  border: 1px solid rgba(184, 255, 60, 0.42);
+  border-radius: 4px;
+  background: rgba(184, 255, 60, 0.06);
   color: var(--edera-lime);
-
-  font:
-    700 11px / 1.45
-    var(--font-mono);
-
-  box-shadow:
-    0 0 0 1px rgba(184, 255, 60, 0.05),
-    0 0 20px rgba(184, 255, 60, 0.09);
-
-  animation: flag-value-pop 420ms ease-out both;
+  font: 700 10px / 1.35 var(--font-mono);
+  box-shadow: 0 0 12px rgba(184, 255, 60, 0.05);
+  animation: flag-value-pop 300ms ease-out both;
 }
 
 .terminal-flag-followup {
@@ -1675,10 +1571,7 @@ a {
 }
 
 .flag-row-captured {
-  padding: 5px 7px;
-  border: 1px solid rgba(184, 255, 60, 0.22);
-  border-radius: 7px;
-  background: rgba(184, 255, 60, 0.055);
+  position: relative;
 }
 
 .flag-row-captured .step-number {
@@ -1693,19 +1586,20 @@ a {
 
 .flag-celebration {
   flex: none;
-  font-size: 11px;
+  margin-left: auto;
+  font-size: 10px;
   line-height: 1;
 }
 
 @keyframes flag-party-pop {
   0% {
     opacity: 0;
-    transform: scale(0.55) rotate(-10deg);
+    transform: scale(0.7) rotate(-8deg);
   }
 
-  60% {
+  70% {
     opacity: 1;
-    transform: scale(1.18) rotate(4deg);
+    transform: scale(1.08) rotate(3deg);
   }
 
   100% {
@@ -1717,12 +1611,29 @@ a {
 @keyframes flag-value-pop {
   0% {
     opacity: 0;
-    transform: translateY(3px);
+    transform: translateY(2px);
   }
 
   100% {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .cli-help-intro {
+    display: block;
+  }
+
+  .cli-help-intro span {
+    display: block;
+    margin-top: 4px;
+  }
+
+  .cli-help-command {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 6px;
   }
 }
 
