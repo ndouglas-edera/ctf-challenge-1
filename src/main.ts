@@ -392,6 +392,7 @@ function terminalText(value: string): string {
 interface HelpCommand {
   command: string;
   description: string;
+  href?: string;
 }
 
 interface HelpSection {
@@ -406,6 +407,7 @@ const helpSections: HelpSection[] = [
       {
         command: "kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
         description: "List pods, optionally across namespaces or with labels.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get pod <name> -n <namespace> -o yaml",
@@ -443,6 +445,7 @@ const helpSections: HelpSection[] = [
       {
         command: "protect host status",
         description: "Show daemon, node, kernel, zone, and workload status.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone list [--selector status.state=failed]",
@@ -573,7 +576,13 @@ function renderCliHelp(): string {
                 .map(
                   (item) => `
                     <div class="cli-help-command">
-                      <code>${escapeHtml(item.command)}</code>
+                      <code>
+                        ${
+                          item.href
+                            ? `<a class="cli-help-command-link" href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer">${escapeHtml(item.command)}</a>`
+                            : escapeHtml(item.command)
+                        }
+                      </code>
                       <span>${escapeHtml(item.description)}</span>
                     </div>
                   `,
@@ -1811,6 +1820,31 @@ function renderFlags(): string {
   `;
 }
 
+function renderTerminalOutput(value: string): string {
+  const lines = value.split("\n");
+
+  if (lines[0] !== "FLAG CAPTURED" || lines.length < 3) {
+    return `<pre class="terminal-output-block">${terminalText(value)}</pre>`;
+  }
+
+  const flag = lines[2].trim();
+  const rest = lines.slice(3).join("\n").trim();
+
+  return `
+    <div class="terminal-flag-capture" role="status" aria-live="polite">
+      <div class="terminal-flag-banner">
+        <span class="terminal-flag-party" aria-hidden="true">🎉</span>
+        <span>FLAG CAPTURED!</span>
+        <span class="terminal-flag-party" aria-hidden="true">🎉</span>
+      </div>
+
+      <div class="terminal-flag-value">${escapeHtml(flag)}</div>
+
+      ${rest ? `<pre class="terminal-output-block terminal-flag-followup">${terminalText(rest)}</pre>` : ""}
+    </div>
+  `;
+}
+
 function renderTerminal(): string {
   return `
     <section class="terminal-panel">
@@ -1874,9 +1908,7 @@ function renderTerminal(): string {
                     `
                     : entry.type === "html"
                       ? entry.text
-                      : `
-                        <pre class="terminal-output-block">${terminalText(entry.text)}</pre>
-                      `,
+                      : renderTerminalOutput(entry.text),
                 )
                 .join("")
         }
@@ -2126,7 +2158,12 @@ function attachTerminalHandlers(): void {
 
     if (result) {
       terminalHistory.push({
-        type: command.trim().toLowerCase() === "help" ? "html" : "output",
+        type:
+          command.trim().toLowerCase() === "help" ||
+          (command.trim().toLowerCase().startsWith("submit ") &&
+            result.startsWith("FLAG CAPTURED"))
+            ? "html"
+            : "output",
         text: result,
       });
     }
