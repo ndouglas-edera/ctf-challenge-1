@@ -1908,8 +1908,8 @@ function render(): void {
 
             <p>
               Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
-              Each objective asks for a value that only appears from investigating. <br/> 
-              Capture all 6 flags to complete the lab.
+              Each objective asks for a value that is only accessible via the CLI.<br/> 
+              Capture all 6 flags to complete the exercise.
             </p>
           </div>
 
