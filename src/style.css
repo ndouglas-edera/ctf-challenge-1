@@ -659,6 +659,17 @@ a {
   font-weight: 700;
 }
 
+
+.terminal-zone-ready {
+  color: var(--edera-lime);
+  font-weight: 700;
+}
+
+.terminal-zone-failed {
+  color: var(--edera-danger);
+  font-weight: 700;
+}
+
 .terminal-runtime-missing {
   color: var(--edera-danger);
   font-weight: 700;
