@@ -2203,14 +2203,14 @@ function render(): void {
             </h1>
 
             <p>
-              You have audit access to a Kubernetes node running Edera Protect.
+              You have audit access to a single Kubernetes node running <a class="mission-doc-link" href="https://on.edera.dev/" target="_blank" rel="noreferrer">Edera</a>.
               <br/> Some workloads on it boot their own kernel. At least one
               does not.
             </p>
 
             <p>
               Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
-              Each objective asks for values that only appears in the terminal outputs.<br/>
+              Each objective asks for values that only appears in the terminal.<br/>
               Capture the 6 flags to complete the exercise.
             </p>
           </div>
