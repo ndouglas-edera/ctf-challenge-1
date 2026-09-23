@@ -357,7 +357,7 @@ const state: GameState = {
 const commandHistory: string[] = [];
 
 interface TerminalEntry {
-  type: "command" | "output";
+  type: "command" | "output" | "html";
   text: string;
 }
 
@@ -387,6 +387,210 @@ function terminalText(value: string): string {
     /(https?:\/\/[^\s<]+)/g,
     '<a class="terminal-link" href="$1" target="_blank" rel="noreferrer">$1</a>',
   );
+}
+
+interface HelpCommand {
+  command: string;
+  description: string;
+}
+
+interface HelpSection {
+  title: string;
+  commands: HelpCommand[];
+}
+
+const helpSections: HelpSection[] = [
+  {
+    title: "Kubernetes",
+    commands: [
+      {
+        command: "kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
+        description: "List pods, optionally across namespaces or with labels.",
+      },
+      {
+        command: "kubectl get pod <name> -n <namespace> -o yaml",
+        description: "Read the complete manifest for a pod.",
+      },
+      {
+        command: "kubectl describe pod <name> -n <namespace>",
+        description: "Inspect detailed pod state and runtime information.",
+      },
+      {
+        command: "kubectl get namespaces",
+        description: "List the namespaces in the cluster.",
+      },
+      {
+        command: "kubectl get nodes",
+        description: "List the nodes available to the cluster.",
+      },
+      {
+        command: "kubectl describe node worker-02",
+        description: "Inspect the worker node and its runtime details.",
+      },
+      {
+        command: "kubectl get runtimeclass",
+        description: "List the RuntimeClass objects configured in the cluster.",
+      },
+      {
+        command: "kubectl exec <name> -n <namespace> -- <command>",
+        description: "Execute a command inside a pod.",
+      },
+    ],
+  },
+  {
+    title: "Edera Protect",
+    commands: [
+      {
+        command: "protect host status",
+        description: "Show daemon, node, kernel, zone, and workload status.",
+      },
+      {
+        command: "protect zone list [--selector status.state=failed]",
+        description: "List Edera zones, optionally filtered by state.",
+      },
+      {
+        command: "protect zone list <name> --output json-pretty",
+        description: "Inspect a zone as formatted JSON.",
+      },
+      {
+        command: "protect zone logs <name>",
+        description: "Read the logs associated with a zone.",
+      },
+      {
+        command: "protect image list [--output table]",
+        description: "List available Edera images.",
+      },
+      {
+        command: "protect image list-kernel-variants",
+        description: "List the kernel variants available to Edera zones.",
+      },
+      {
+        command: "protect workload list",
+        description: "List workloads known to Edera Protect.",
+      },
+      {
+        command: "protect workload exec <name> <command>",
+        description: "Execute a command through the Edera workload interface.",
+      },
+    ],
+  },
+  {
+    title: "Shell",
+    commands: [
+      {
+        command: "pwd",
+        description: "Print the current working directory.",
+      },
+      {
+        command: "cd <directory>",
+        description: "Change the current working directory.",
+      },
+      {
+        command: "ls [-la]",
+        description: "List files and directories.",
+      },
+      {
+        command: "cat <file>",
+        description: "Read a file from the node filesystem.",
+      },
+      {
+        command: "tree",
+        description: "Display the node filesystem tree.",
+      },
+      {
+        command: "whoami",
+        description: "Print the current user.",
+      },
+      {
+        command: "hostname",
+        description: "Print the node hostname.",
+      },
+      {
+        command: "uname -a",
+        description: "Display kernel and system information.",
+      },
+      {
+        command: "env",
+        description: "Display the simulated node environment.",
+      },
+      {
+        command: "ps",
+        description: "List simulated running processes.",
+      },
+      {
+        command: "history",
+        description: "Recall previously entered commands, or use ↑ / ↓.",
+      },
+      {
+        command: "clear",
+        description: "Clear the terminal history.",
+      },
+    ],
+  },
+  {
+    title: "Lab",
+    commands: [
+      {
+        command: "objective",
+        description: "Show the current investigation objective.",
+      },
+      {
+        command: "flags",
+        description: "Show flags captured so far.",
+      },
+      {
+        command: "submit <value>",
+        description: "Submit a value for the current objective.",
+      },
+    ],
+  },
+];
+
+function renderCliHelp(): string {
+  return `
+    <div class="cli-help">
+      <div class="cli-help-header">
+        <div class="cli-help-title">EDERA / ISOLATION RESEARCH LAB</div>
+        <div class="cli-help-version">
+          THE BOUNDARY / SECURITY CHALLENGE 01
+        </div>
+      </div>
+
+      <div class="cli-help-description">
+        Available commands for investigating worker-02, Kubernetes workloads,
+        Edera Protect zones, and the host runtime boundary.
+      </div>
+
+      ${helpSections
+        .map(
+          (section) => `
+            <section class="cli-help-section">
+              <div class="cli-help-section-title">
+                ${escapeHtml(section.title)}
+              </div>
+
+              ${section.commands
+                .map(
+                  (item) => `
+                    <div class="cli-help-command">
+                      <code>${escapeHtml(item.command)}</code>
+                      <span>${escapeHtml(item.description)}</span>
+                    </div>
+                  `,
+                )
+                .join("")}
+            </section>
+          `,
+        )
+        .join("")}
+
+      <div class="cli-help-tip">
+        <strong>Tip</strong>
+        &nbsp;Start with <code>objective</code>, then use the commands above
+        to find the value requested by each objective.
+      </div>
+    </div>
+  `;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -1346,41 +1550,7 @@ async function runCommand(command: string): Promise<string> {
   }
 
   if (normalized === "help") {
-    return [
-      "EDERA / ISOLATION RESEARCH LAB",
-      "THE BOUNDARY / SECURITY CHALLENGE 01",
-      "",
-      "Kubernetes",
-      "  kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
-      "  kubectl get pod <name> -n <namespace> -o yaml",
-      "  kubectl describe pod <name> -n <namespace>",
-      "  kubectl get namespaces",
-      "  kubectl get nodes",
-      "  kubectl describe node worker-02",
-      "  kubectl get runtimeclass",
-      "  kubectl exec <name> -n <namespace> -- <command>",
-      "",
-      "Edera Protect",
-      "  protect host status",
-      "  protect zone list [--selector status.state=failed]",
-      "  protect zone list <name> --output json-pretty",
-      "  protect zone logs <name>",
-      "  protect image list [--output table]",
-      "  protect image list-kernel-variants",
-      "  protect workload list",
-      "  protect workload exec <name> <command>",
-      "",
-      "Shell",
-      "  pwd, cd, ls [-la], cat <file>, tree",
-      "  whoami, hostname, uname -a, env, ps",
-      "  history          recall previous commands (or use ↑ / ↓)",
-      "  clear",
-      "",
-      "Lab",
-      "  objective        show the current objective",
-      "  flags            show captured flags",
-      "  submit <value>   capture the current flag",
-    ].join("\n");
+    return renderCliHelp();
   }
 
   if (normalized === "objective" || normalized === "status") {
@@ -1702,9 +1872,11 @@ function renderTerminal(): string {
                         <span class="terminal-command-text">${escapeHtml(entry.text)}</span>
                       </div>
                     `
-                    : `
-                      <pre class="terminal-output-block">${terminalText(entry.text)}</pre>
-                    `,
+                    : entry.type === "html"
+                      ? entry.text
+                      : `
+                        <pre class="terminal-output-block">${terminalText(entry.text)}</pre>
+                      `,
                 )
                 .join("")
         }
@@ -1953,7 +2125,10 @@ function attachTerminalHandlers(): void {
     const result = await runCommand(command);
 
     if (result) {
-      terminalHistory.push({ type: "output", text: result });
+      terminalHistory.push({
+        type: command.trim().toLowerCase() === "help" ? "html" : "output",
+        text: result,
+      });
     }
 
     render();
