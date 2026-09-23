@@ -412,30 +412,37 @@ const helpSections: HelpSection[] = [
       {
         command: "kubectl get pod <name> -n <namespace> -o yaml",
         description: "Read the complete manifest for a pod.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl describe pod <name> -n <namespace>",
         description: "Inspect detailed pod state and runtime information.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get namespaces",
         description: "List the namespaces in the cluster.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get nodes",
         description: "List the nodes available to the cluster.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl describe node worker-02",
         description: "Inspect the worker node and its runtime details.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get runtimeclass",
         description: "List the RuntimeClass objects configured in the cluster.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl exec <name> -n <namespace> -- <command>",
         description: "Execute a command inside a pod.",
+        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
     ],
   },
@@ -450,30 +457,37 @@ const helpSections: HelpSection[] = [
       {
         command: "protect zone list [--selector status.state=failed]",
         description: "List Edera zones, optionally filtered by state.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone list <name> --output json-pretty",
         description: "Inspect a zone as formatted JSON.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone logs <name>",
         description: "Read the logs associated with a zone.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect image list [--output table]",
         description: "List available Edera images.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect image list-kernel-variants",
         description: "List the kernel variants available to Edera zones.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect workload list",
         description: "List workloads known to Edera Protect.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect workload exec <name> <command>",
         description: "Execute a command through the Edera workload interface.",
+        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
     ],
   },
@@ -1807,9 +1821,10 @@ function renderFlags(): string {
             : state.captured
                 .map(
                   (flag, index) => `
-                    <div class="flag-row">
+                    <div class="flag-row flag-row-captured">
                       <span class="step-number">${String(index + 1).padStart(2, "0")}</span>
                       <code>${escapeHtml(flag)}</code>
+                      <span class="flag-celebration" aria-hidden="true">🎉</span>
                     </div>
                   `,
                 )
