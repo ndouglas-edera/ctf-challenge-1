@@ -392,7 +392,6 @@ function terminalText(value: string): string {
 interface HelpCommand {
   command: string;
   description: string;
-  href?: string;
 }
 
 interface HelpSection {
@@ -407,42 +406,34 @@ const helpSections: HelpSection[] = [
       {
         command: "kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
         description: "List pods, optionally across namespaces or with labels.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get pod <name> -n <namespace> -o yaml",
         description: "Read the complete manifest for a pod.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl describe pod <name> -n <namespace>",
         description: "Inspect detailed pod state and runtime information.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get namespaces",
         description: "List the namespaces in the cluster.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get nodes",
         description: "List the nodes available to the cluster.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl describe node worker-02",
         description: "Inspect the worker node and its runtime details.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl get runtimeclass",
         description: "List the RuntimeClass objects configured in the cluster.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
       {
         command: "kubectl exec <name> -n <namespace> -- <command>",
         description: "Execute a command inside a pod.",
-        href: "https://kubernetes.io/docs/reference/kubectl/",
       },
     ],
   },
@@ -452,42 +443,34 @@ const helpSections: HelpSection[] = [
       {
         command: "protect host status",
         description: "Show daemon, node, kernel, zone, and workload status.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone list [--selector status.state=failed]",
         description: "List Edera zones, optionally filtered by state.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone list <name> --output json-pretty",
         description: "Inspect a zone as formatted JSON.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect zone logs <name>",
         description: "Read the logs associated with a zone.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect image list [--output table]",
         description: "List available Edera images.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect image list-kernel-variants",
         description: "List the kernel variants available to Edera zones.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect workload list",
         description: "List workloads known to Edera Protect.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
       {
         command: "protect workload exec <name> <command>",
         description: "Execute a command through the Edera workload interface.",
-        href: "https://docs.edera.dev/guides/cli-user-guide/",
       },
     ],
   },
@@ -526,7 +509,7 @@ function renderCliHelp(): string {
     <div class="cli-help">
       <div class="cli-help-intro">
         <strong>COMMAND REFERENCE</strong>
-        <span>Use the links to open the relevant CLI documentation.</span>
+        <span>Use these commands to explore the lab.</span>
       </div>
 
       ${helpSections
@@ -538,11 +521,7 @@ function renderCliHelp(): string {
                 .map(
                   (item) => `
                     <div class="cli-help-command">
-                      <code>${
-                        item.href
-                          ? `<a class="cli-help-command-link" href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer">${escapeHtml(item.command)}</a>`
-                          : escapeHtml(item.command)
-                      }</code>
+                      <code>${escapeHtml(item.command)}</code>
                       <span>${escapeHtml(item.description)}</span>
                     </div>
                   `,
@@ -1928,7 +1907,7 @@ function render(): void {
             </p>
 
             <p>
-              Work through the cluster with kubectl and the protect CLI.
+              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI.
               Each objective asks for a value that only appears in real command
               output. Submit it to capture the flag and unlock the next step.
             </p>
