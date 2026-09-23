@@ -286,6 +286,21 @@ a {
   line-height: 1.65;
 }
 
+.mission-doc-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(15, 92, 84, 0.35);
+  text-underline-offset: 3px;
+  font-weight: 700;
+}
+
+.mission-doc-link:hover,
+.mission-doc-link:focus-visible {
+  color: var(--edera-teal-2);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
 .mission-meta {
   align-self: stretch;
   padding-left: 24px;
