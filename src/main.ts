@@ -178,6 +178,31 @@ const zones: Zone[] = [
   },
 ];
 
+/*
+ * The arrays above are the lab's initial cluster state. `kubectl apply -f`
+ * and `kubectl delete -f` mutate the live state below, while the manifest
+ * files themselves remain on the node so they can be applied again.
+ */
+const podTemplates = new Map(
+  pods.map((pod) => [
+    pod.name,
+    {
+      ...pod,
+      annotations: { ...pod.annotations },
+    },
+  ]),
+);
+
+const zoneTemplates = new Map(
+  zones.map((zone) => [
+    zone.name,
+    {
+      ...zone,
+      failure: zone.failure ? [...zone.failure] : undefined,
+    },
+  ]),
+);
+
 const images: CachedImage[] = [
   {
     reference: ZONE_KERNEL,
@@ -430,6 +455,14 @@ const helpSections: HelpSection[] = [
       {
         command: "kubectl get runtimeclass",
         description: "List the RuntimeClass objects configured in the cluster.",
+      },
+      {
+        command: "kubectl apply -f <file|directory>",
+        description: "Create or update pods from manifests on the node.",
+      },
+      {
+        command: "kubectl delete -f <file|directory>",
+        description: "Delete pods described by manifests on the node.",
       },
       {
         command: "kubectl exec <name> -n <namespace> -- <command>",
@@ -913,6 +946,8 @@ function kubectlUsage(): string {
     "  kubectl get nodes",
     "  kubectl describe node worker-02",
     "  kubectl get runtimeclass",
+    "  kubectl apply -f <file|directory>",
+    "  kubectl delete -f <file|directory>",
     "  kubectl exec <name> -n <namespace> -- <command>",
   ].join("\n");
 }
@@ -1123,8 +1158,237 @@ function kubectlExec(name: string | undefined, rest: string, flags: KubectlFlags
   ].join("\n");
 }
 
+interface ManifestAction {
+  verb: "apply" | "delete";
+  paths: string[];
+}
+
+function yamlScalar(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  return trimmed.replace(/^["']|["']$/g, "");
+}
+
+function parsePodManifest(content: string): Pod | undefined {
+  const name = yamlScalar(/^\s{2}name:\s*(.+)$/m.exec(content)?.[1]);
+  const namespace = yamlScalar(
+    /^\s{2}namespace:\s*(.+)$/m.exec(content)?.[1],
+  );
+  const containerName = yamlScalar(
+    /^\s{2}-\s+name:\s*(.+)$/m.exec(content)?.[1],
+  );
+  const image = yamlScalar(/^\s{4}image:\s*(.+)$/m.exec(content)?.[1]);
+
+  if (!name || !namespace || !containerName || !image) {
+    return undefined;
+  }
+
+  const runtimeClassMatch = /^\s{2}runtimeClassName:\s*(.+)$/m.exec(content);
+  const runtimeClass = yamlScalar(runtimeClassMatch?.[1]) ?? null;
+
+  const privilegedMatch = /^\s{6}privileged:\s*(true|false)\s*$/m.exec(content);
+  const privileged = privilegedMatch?.[1] === "true";
+
+  const annotations: Record<string, string> = {};
+  const annotationSection = content.match(
+    /metadata:\s*\n(?:.*\n)*?\s{2}annotations:\s*\n([\s\S]*?)(?=\nspec:)/,
+  );
+
+  if (annotationSection) {
+    for (const line of annotationSection[1].split("\n")) {
+      const match = /^\s{4}([^:]+):\s*(.+)$/.exec(line);
+
+      if (!match) continue;
+
+      const key = match[1].trim();
+      const value = yamlScalar(match[2]);
+
+      if (value !== undefined) annotations[key] = value;
+    }
+  }
+
+  const template = podTemplates.get(name);
+  const pod: Pod = {
+    name,
+    namespace,
+    app: containerName,
+    node: template?.node ?? NODE.name,
+    status: template?.status ?? "Running",
+    privileged,
+    runtimeClass,
+    annotations,
+    zone: template?.zone ?? null,
+    image,
+  };
+
+  return pod;
+}
+
+function manifestPaths(input: string): string[] {
+  const path = resolvePath(input);
+
+  if (path in virtualFiles) return [path];
+
+  if (!directories.has(path)) return [];
+
+  return Object.keys(virtualFiles)
+    .filter(
+      (file) =>
+        file.startsWith(`${path}/`) &&
+        file.endsWith(".yaml") &&
+        !file.slice(path.length + 1).includes("/"),
+    )
+    .sort();
+}
+
+function parseManifestAction(tokens: string[]): ManifestAction | undefined {
+  const verb = tokens[0];
+
+  if (verb !== "apply" && verb !== "delete") return undefined;
+
+  let filename: string | undefined;
+
+  for (let index = 1; index < tokens.length; index++) {
+    const token = tokens[index];
+
+    if (token === "-f" || token === "--filename") {
+      filename = tokens[index + 1];
+      break;
+    }
+
+    if (token.startsWith("-f=")) {
+      filename = token.slice(3);
+      break;
+    }
+
+    if (token.startsWith("--filename=")) {
+      filename = token.slice("--filename=".length);
+      break;
+    }
+  }
+
+  if (!filename) return { verb, paths: [] };
+
+  return {
+    verb,
+    paths: manifestPaths(filename),
+  };
+}
+
+function syncZoneForPod(pod: Pod): void {
+  const zoneName = pod.zone;
+
+  if (!zoneName || !pod.runtimeClass) {
+    zones.splice(
+      0,
+      zones.length,
+      ...zones.filter((zone) => zone.pod !== pod.name),
+    );
+    return;
+  }
+
+  const template = zoneTemplates.get(zoneName);
+
+  if (!template) return;
+
+  const nextZone: Zone = {
+    ...template,
+    pod: pod.name,
+    failure: template.failure ? [...template.failure] : undefined,
+  };
+
+  const existingIndex = zones.findIndex((zone) => zone.name === zoneName);
+
+  if (existingIndex === -1) {
+    zones.push(nextZone);
+  } else {
+    zones[existingIndex] = nextZone;
+  }
+}
+
+function applyManifest(path: string): string {
+  const content = virtualFiles[path];
+
+  if (content === undefined) {
+    return `error: the path "${path}" does not exist`;
+  }
+
+  const pod = parsePodManifest(content);
+
+  if (!pod) {
+    return `error: unable to parse Pod manifest "${path}"`;
+  }
+
+  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+
+  if (existingIndex === -1) {
+    pods.push(pod);
+  } else {
+    pods[existingIndex] = pod;
+  }
+
+  syncZoneForPod(pod);
+
+  return `pod/${pod.name} configured`;
+}
+
+function deleteManifest(path: string): string {
+  const content = virtualFiles[path];
+
+  if (content === undefined) {
+    return `error: the path "${path}" does not exist`;
+  }
+
+  const pod = parsePodManifest(content);
+
+  if (!pod) {
+    return `error: unable to parse Pod manifest "${path}"`;
+  }
+
+  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+
+  if (existingIndex === -1) {
+    return `Error from server (NotFound): pods "${pod.name}" not found`;
+  }
+
+  pods.splice(existingIndex, 1);
+
+  for (let index = zones.length - 1; index >= 0; index--) {
+    if (zones[index].pod === pod.name) zones.splice(index, 1);
+  }
+
+  state.inspected.delete(pod.name);
+
+  return `pod "${pod.name}" deleted`;
+}
+
+function kubectlManifestAction(action: ManifestAction): string {
+  if (action.paths.length === 0) {
+    return [
+      `error: no manifest files matched`,
+      "",
+      "usage: kubectl <apply|delete> -f <file|directory>",
+    ].join("\n");
+  }
+
+  const results = action.paths.map((path) =>
+    action.verb === "apply" ? applyManifest(path) : deleteManifest(path),
+  );
+
+  return results.join("\n");
+}
+
 function kubectl(raw: string): string {
   const tokens = raw.split(/\s+/).slice(1);
+  const manifestAction = parseManifestAction(tokens);
+
+  if (manifestAction) {
+    return kubectlManifestAction(manifestAction);
+  }
+
   const separator = tokens.indexOf("--");
   const head = separator === -1 ? tokens : tokens.slice(0, separator);
   const tail = separator === -1 ? [] : tokens.slice(separator + 1);
@@ -1663,11 +1927,26 @@ function renderArchitecture(): string {
         <span class="status-pill ${
           found ? "status-danger" : "status-unknown"
         }">
-          ${found ? "UNPROTECTED WORKLOAD" : "RUNTIME UNKNOWN"}
+          ${
+            found
+              ? "UNPROTECTED WORKLOAD"
+              : pods.length > 0
+                ? `${pods.length} WORKLOAD${pods.length === 1 ? "" : "S"}`
+                : "NO WORKLOADS"
+          }
         </span>
       </div>
 
-      <div class="tenant-grid">${cards}</div>
+      ${
+        pods.length > 0
+          ? `<div class="tenant-grid">${cards}</div>`
+          : `
+            <div class="architecture-empty">
+              <strong>NO WORKLOADS SCHEDULED</strong>
+              <span>Apply a manifest from <code>~/manifests</code> to restore a workload.</span>
+            </div>
+          `
+      }
 
       <div class="kernel-connector"></div>
 
@@ -1907,9 +2186,9 @@ function render(): void {
             </p>
 
             <p>
-              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
-              Each objective asks for a value that is only accessible via the CLI.<br/> 
-              Capture all 6 flags to complete the exercise.
+              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI.
+              Each objective asks for a value that only appears in real command
+              output. Submit it to capture the flag and unlock the next step.
             </p>
           </div>
 
