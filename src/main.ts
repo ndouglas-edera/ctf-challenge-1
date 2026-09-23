@@ -494,71 +494,29 @@ const helpSections: HelpSection[] = [
   {
     title: "Shell",
     commands: [
-      {
-        command: "pwd",
-        description: "Print the current working directory.",
-      },
-      {
-        command: "cd <directory>",
-        description: "Change the current working directory.",
-      },
-      {
-        command: "ls [-la]",
-        description: "List files and directories.",
-      },
-      {
-        command: "cat <file>",
-        description: "Read a file from the node filesystem.",
-      },
-      {
-        command: "tree",
-        description: "Display the node filesystem tree.",
-      },
-      {
-        command: "whoami",
-        description: "Print the current user.",
-      },
-      {
-        command: "hostname",
-        description: "Print the node hostname.",
-      },
-      {
-        command: "uname -a",
-        description: "Display kernel and system information.",
-      },
-      {
-        command: "env",
-        description: "Display the simulated node environment.",
-      },
-      {
-        command: "ps",
-        description: "List simulated running processes.",
-      },
+      { command: "pwd", description: "Print the current working directory." },
+      { command: "cd <directory>", description: "Change the current working directory." },
+      { command: "ls [-la]", description: "List files and directories." },
+      { command: "cat <file>", description: "Read a file from the node filesystem." },
+      { command: "tree", description: "Display the node filesystem tree." },
+      { command: "whoami", description: "Print the current user." },
+      { command: "hostname", description: "Print the node hostname." },
+      { command: "uname -a", description: "Display kernel and system information." },
+      { command: "env", description: "Display the simulated node environment." },
+      { command: "ps", description: "List simulated running processes." },
       {
         command: "history",
         description: "Recall previously entered commands, or use ↑ / ↓.",
       },
-      {
-        command: "clear",
-        description: "Clear the terminal history.",
-      },
+      { command: "clear", description: "Clear the terminal history." },
     ],
   },
   {
     title: "Lab",
     commands: [
-      {
-        command: "objective",
-        description: "Show the current investigation objective.",
-      },
-      {
-        command: "flags",
-        description: "Show flags captured so far.",
-      },
-      {
-        command: "submit <value>",
-        description: "Submit a value for the current objective.",
-      },
+      { command: "objective", description: "Show the current investigation objective." },
+      { command: "flags", description: "Show flags captured so far." },
+      { command: "submit <value>", description: "Submit a value for the current objective." },
     ],
   },
 ];
@@ -566,37 +524,25 @@ const helpSections: HelpSection[] = [
 function renderCliHelp(): string {
   return `
     <div class="cli-help">
-      <div class="cli-help-header">
-        <div class="cli-help-title">EDERA / ISOLATION RESEARCH LAB</div>
-        <div class="cli-help-version">
-          THE BOUNDARY / SECURITY CHALLENGE 01
-        </div>
-      </div>
-
-      <div class="cli-help-description">
-        Available commands for investigating worker-02, Kubernetes workloads,
-        Edera Protect zones, and the host runtime boundary.
+      <div class="cli-help-intro">
+        <strong>COMMAND REFERENCE</strong>
+        <span>Use the links to open the relevant CLI documentation.</span>
       </div>
 
       ${helpSections
         .map(
           (section) => `
             <section class="cli-help-section">
-              <div class="cli-help-section-title">
-                ${escapeHtml(section.title)}
-              </div>
-
+              <div class="cli-help-section-title">${escapeHtml(section.title)}</div>
               ${section.commands
                 .map(
                   (item) => `
                     <div class="cli-help-command">
-                      <code>
-                        ${
-                          item.href
-                            ? `<a class="cli-help-command-link" href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer">${escapeHtml(item.command)}</a>`
-                            : escapeHtml(item.command)
-                        }
-                      </code>
+                      <code>${
+                        item.href
+                          ? `<a class="cli-help-command-link" href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer">${escapeHtml(item.command)}</a>`
+                          : escapeHtml(item.command)
+                      }</code>
                       <span>${escapeHtml(item.description)}</span>
                     </div>
                   `,
@@ -609,8 +555,7 @@ function renderCliHelp(): string {
 
       <div class="cli-help-tip">
         <strong>Tip</strong>
-        &nbsp;Start with <code>objective</code>, then use the commands above
-        to find the value requested by each objective.
+        Start with <code>objective</code>, then investigate the node with the commands above.
       </div>
     </div>
   `;
@@ -1835,6 +1780,7 @@ function renderFlags(): string {
   `;
 }
 
+
 function renderTerminalOutput(value: string): string {
   const lines = value.split("\n");
 
@@ -1848,14 +1794,15 @@ function renderTerminalOutput(value: string): string {
   return `
     <div class="terminal-flag-capture" role="status" aria-live="polite">
       <div class="terminal-flag-banner">
-        <span class="terminal-flag-party" aria-hidden="true">🎉</span>
-        <span>FLAG CAPTURED!</span>
+        <span>FLAG CAPTURED</span>
         <span class="terminal-flag-party" aria-hidden="true">🎉</span>
       </div>
-
       <div class="terminal-flag-value">${escapeHtml(flag)}</div>
-
-      ${rest ? `<pre class="terminal-output-block terminal-flag-followup">${terminalText(rest)}</pre>` : ""}
+      ${
+        rest
+          ? `<pre class="terminal-output-block terminal-flag-followup">${terminalText(rest)}</pre>`
+          : ""
+      }
     </div>
   `;
 }
@@ -2173,12 +2120,7 @@ function attachTerminalHandlers(): void {
 
     if (result) {
       terminalHistory.push({
-        type:
-          command.trim().toLowerCase() === "help" ||
-          (command.trim().toLowerCase().startsWith("submit ") &&
-            result.startsWith("FLAG CAPTURED"))
-            ? "html"
-            : "output",
+        type: command.trim().toLowerCase() === "help" ? "html" : "output",
         text: result,
       });
     }
