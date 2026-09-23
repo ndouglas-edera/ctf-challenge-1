@@ -1578,3 +1578,157 @@ a {
     font-size: 10px;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* CLI help links                                                              */
+/*                                                                            */
+/* Keep the existing help layout untouched. Links inherit the command styling */
+/* while making the external documentation affordance obvious on hover/focus. */
+/* -------------------------------------------------------------------------- */
+
+.cli-help-command-link {
+  color: inherit;
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.cli-help-command-link:hover,
+.cli-help-command-link:focus-visible {
+  color: var(--edera-white);
+  text-decoration: underline;
+  text-decoration-color: var(--edera-cyan);
+  outline: none;
+}
+
+.cli-help-command-link::after {
+  content: " ↗";
+  color: var(--edera-cyan);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Captured flags                                                              */
+/* -------------------------------------------------------------------------- */
+
+.terminal-flag-capture {
+  margin: 4px 0 20px;
+  padding: 12px 0 2px;
+}
+
+.terminal-flag-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+
+  color: var(--edera-lime);
+
+  font:
+    700 11px / 1.3
+    var(--font-mono);
+
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.terminal-flag-party {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  animation: flag-party-pop 700ms ease-out both;
+}
+
+.terminal-flag-value {
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 11px;
+  padding: 8px 11px;
+
+  border: 1px solid rgba(184, 255, 60, 0.55);
+  border-radius: 6px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(184, 255, 60, 0.13),
+      rgba(184, 255, 60, 0.055)
+    );
+
+  color: var(--edera-lime);
+
+  font:
+    700 11px / 1.45
+    var(--font-mono);
+
+  box-shadow:
+    0 0 0 1px rgba(184, 255, 60, 0.05),
+    0 0 20px rgba(184, 255, 60, 0.09);
+
+  animation: flag-value-pop 420ms ease-out both;
+}
+
+.terminal-flag-followup {
+  margin-bottom: 0;
+}
+
+.flag-row-captured {
+  padding: 5px 7px;
+  border: 1px solid rgba(184, 255, 60, 0.22);
+  border-radius: 7px;
+  background: rgba(184, 255, 60, 0.055);
+}
+
+.flag-row-captured .step-number {
+  background: rgba(184, 255, 60, 0.2);
+  color: #557f17;
+}
+
+.flag-row-captured code {
+  color: #557f17;
+  font-weight: 700;
+}
+
+.flag-celebration {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+}
+
+@keyframes flag-party-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-10deg);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.18) rotate(4deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes flag-value-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-flag-party,
+  .terminal-flag-value {
+    animation: none;
+  }
+}
