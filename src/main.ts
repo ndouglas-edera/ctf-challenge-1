@@ -947,6 +947,7 @@ function kubectlUsage(): string {
     "  kubectl describe node worker-02",
     "  kubectl get runtimeclass",
     "  kubectl apply -f <file|directory>",
+    "  kubectl delete pod <name> -n <namespace>",
     "  kubectl delete -f <file|directory>",
     "  kubectl exec <name> -n <namespace> -- <command>",
   ].join("\n");
@@ -1335,6 +1336,32 @@ function applyManifest(path: string): string {
   return `pod/${pod.name} configured`;
 }
 
+function removePod(pod: Pod): void {
+  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+
+  if (existingIndex !== -1) {
+    pods.splice(existingIndex, 1);
+  }
+
+  for (let index = zones.length - 1; index >= 0; index--) {
+    if (zones[index].pod === pod.name) zones.splice(index, 1);
+  }
+
+  state.inspected.delete(pod.name);
+}
+
+function deletePod(name: string | undefined, flags: KubectlFlags): string {
+  if (!name) return "error: resource name may not be empty";
+
+  const pod = resolvePod(name, flags);
+
+  if (!pod) return notFound("pods", name);
+
+  removePod(pod);
+
+  return `pod "${pod.name}" deleted`;
+}
+
 function deleteManifest(path: string): string {
   const content = virtualFiles[path];
 
@@ -1354,13 +1381,7 @@ function deleteManifest(path: string): string {
     return `Error from server (NotFound): pods "${pod.name}" not found`;
   }
 
-  pods.splice(existingIndex, 1);
-
-  for (let index = zones.length - 1; index >= 0; index--) {
-    if (zones[index].pod === pod.name) zones.splice(index, 1);
-  }
-
-  state.inspected.delete(pod.name);
+  removePod(pod);
 
   return `pod "${pod.name}" deleted`;
 }
@@ -1425,6 +1446,8 @@ function kubectl(raw: string): string {
   if (verb === "get" && isNode) return getNodes();
   if (verb === "get" && isNamespace) return getNamespaces();
   if (verb === "get" && isRuntimeClass) return getRuntimeClass();
+
+  if (verb === "delete" && isPod) return deletePod(name, flags);
 
   if (verb === "describe" && isPod) return describePod(name, flags);
   if (verb === "describe" && isNode) return describeNode(name ?? NODE.name);
