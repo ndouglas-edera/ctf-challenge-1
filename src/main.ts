@@ -1271,7 +1271,7 @@ function parseManifestAction(tokens: string[]): ManifestAction | undefined {
     }
   }
 
-  if (!filename) return { verb, paths: [] };
+  if (!filename) return undefined;
 
   return {
     verb,
