@@ -2209,9 +2209,9 @@ function render(): void {
             </p>
 
             <p>
-              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI.
-              Each objective asks for a value that only appears in real command
-              output. Submit it to capture the flag and unlock the next step.
+              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
+              Each objective asks for values that only appears in the terminal outputs.<br/>
+              Capture the 6 flags to complete the exercise.
             </p>
           </div>
 
