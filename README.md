@@ -47,4 +47,4 @@ Insert description
 | 5. Find workload without zone      | ```kubectl get pod -n customer-c recommendation-c -o yaml```  | ```submit recommendation-c```                     |
 | 6. Launch a zone    | ```protect zone launch --name my-zone```                      |                                                   |
 | 6. Launch workload in zone    | ```protect workload launch --zone my-zone --name web-server nginx:latest```  |                                    |
-| 6. Check the logs    | ```protect zone logs my-zone --follow```                      | ```submit 6.1.0-edera-host```      |
+| 6. Check the logs    | ```protect zone logs my-zone --follow```                      | ```submit EDERA{ZONE_WORKLOAD_LAUNCH}```      |
