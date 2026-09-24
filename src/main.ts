@@ -540,7 +540,7 @@ const helpSections: HelpSection[] = [
         description: "Inspect a zone as formatted JSON.",
       },
       {
-        command: "protect zone create <name>",
+        command: "protect zone launch --name <name> [--wait]",
         description: "Create a ready Edera zone for a workload.",
       },
       {
@@ -1651,7 +1651,7 @@ function protectUsage(): string {
     "",
     "  protect zone list [--selector status.state=<state>]",
     "  protect zone list <name> --output json-pretty",
-    "  protect zone create <name>",
+    "  protect zone launch --name <name> [--wait]",
     "  protect zone logs <name> [--follow]",
     "  protect image list [--output table]",
     "  protect image list-kernel-variants",
@@ -1722,9 +1722,12 @@ function zoneList(input: string, name: string | undefined): string {
   ].join("\n");
 }
 
-function zoneCreate(name: string | undefined): string {
+function zoneLaunch(input: string): string {
+  const nameMatch = /(?:^|\s)--name\s+(\S+)/.exec(input);
+  const name = nameMatch?.[1];
+
   if (!name || name.startsWith("-")) {
-    return "usage: protect zone create <name>";
+    return "usage: protect zone launch --name <name> [--wait]";
   }
 
   if (findZone(name)) {
@@ -1996,7 +1999,7 @@ function protectCli(input: string): string {
 
   if (command === "zone") {
     if (subcommand === "list") return zoneList(input, name);
-    if (subcommand === "create") return zoneCreate(name);
+    if (subcommand === "launch") return zoneLaunch(input);
     if (subcommand === "logs") {
       return zoneLogs(name, input.includes("--follow"));
     }
