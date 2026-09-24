@@ -41,7 +41,7 @@ const NODE = {
   name: "worker-02",
   status: "Ready",
   kernelVersion: "6.1.0-edera-host",
-  os: "Edera Protect Host",
+  os: "Ubuntu 20.04 LTS",
   runtime: "containerd://1.7.13",
   capacityMemory: "16Gi",
   allocatableMemory: "14Gi",
@@ -515,7 +515,7 @@ const helpSections: HelpSection[] = [
     ],
   },
   {
-    title: "Edera Protect",
+    title: "Kubernetes",
     commands: [
       {
         command: "protect host status",
