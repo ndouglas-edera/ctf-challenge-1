@@ -45,6 +45,14 @@ const NODE = {
   runtime: "containerd://1.7.13",
   capacityMemory: "16Gi",
   allocatableMemory: "14Gi",
+  ip: "10.10.0.12",
+  labels: {
+    "kubernetes.io/hostname": "worker-02",
+    "kubernetes.io/os": "linux",
+    "kubernetes.io/arch": "amd64",
+    "node-role.kubernetes.io/worker": "",
+    "edera.dev/runtime": "edera",
+  },
 };
 
 const ZONE_KERNEL = "ghcr.io/edera-dev/zone-kernel:6.15";
@@ -489,12 +497,14 @@ const helpSections: HelpSection[] = [
         description: "List the namespaces in the cluster.",
       },
       {
-        command: "kubectl get nodes",
-        description: "List the nodes available to the cluster.",
+        command: "kubectl get nodes [-o wide]",
+        description:
+          "List nodes, optionally with IP and system information.",
       },
       {
         command: "kubectl describe node worker-02",
-        description: "Inspect the worker node and its runtime details.",
+        description:
+          "Inspect the worker node, IP, labels, and runtime details.",
       },
       {
         command: "kubectl get runtimeclass",
@@ -515,7 +525,7 @@ const helpSections: HelpSection[] = [
     ],
   },
   {
-    title: "Kubernetes",
+    title: "Edera",
     commands: [
       {
         command: "protect host status",
@@ -995,8 +1005,9 @@ function kubectlUsage(): string {
     "  kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
     "  kubectl get pod <name> -n <namespace> -o yaml",
     "  kubectl describe pod <name> -n <namespace>",
-    "  kubectl get nodes",
+    "  kubectl get nodes [-o wide]",
     "  kubectl describe node worker-02",
+    "  kubectl get namespaces",
     "  kubectl get runtimeclass",
     "  kubectl apply -f <file|directory>",
     "  kubectl delete pod <name> -n <namespace>",
@@ -1126,11 +1137,40 @@ function getPodYaml(name: string | undefined, flags: KubectlFlags): string {
   ].join("\n");
 }
 
-function getNodes(): string {
-  return table(
-    ["NAME", "STATUS", "ROLES", "AGE", "VERSION"],
-    [[NODE.name, NODE.status, "worker", "41d", "v1.31.4"]],
-  );
+/*
+ * `kubectl get nodes -o wide` exposes the node's address and system details,
+ * just like the real kubectl output.
+ */
+function getNodes(wide = false): string {
+  const headers = ["NAME", "STATUS", "ROLES", "AGE", "VERSION"];
+
+  if (wide) {
+    headers.push(
+      "INTERNAL-IP",
+      "OS-IMAGE",
+      "KERNEL-VERSION",
+      "CONTAINER-RUNTIME",
+    );
+  }
+
+  const row = [
+    NODE.name,
+    NODE.status,
+    "worker",
+    "41d",
+    "v1.31.4",
+  ];
+
+  if (wide) {
+    row.push(
+      NODE.ip,
+      NODE.os,
+      NODE.kernelVersion,
+      NODE.runtime,
+    );
+  }
+
+  return table(headers, [row]);
 }
 
 function describeNode(name: string | undefined): string {
@@ -1140,8 +1180,19 @@ function describeNode(name: string | undefined): string {
 
   const scheduled = pods.filter((pod) => pod.node === NODE.name);
 
+  const labelLines = Object.entries(NODE.labels).map(
+    ([key, value], index) =>
+      index === 0
+        ? `Labels:              ${key}${value ? `=${value}` : ""}`
+        : `                     ${key}${value ? `=${value}` : ""}`,
+  );
+
   return [
     `Name:               ${NODE.name}`,
+    "Roles:              worker",
+    `InternalIP:         ${NODE.ip}`,
+    `Status:             ${NODE.status}`,
+    ...labelLines,
     "",
     "System Info:",
     `  Kernel Version:             ${NODE.kernelVersion}`,
@@ -1185,7 +1236,11 @@ function getRuntimeClass(): string {
   ].join("\n");
 }
 
-function kubectlExec(name: string | undefined, rest: string, flags: KubectlFlags): string {
+function kubectlExec(
+  name: string | undefined,
+  rest: string,
+  flags: KubectlFlags,
+): string {
   if (!name) return "error: pod name may not be empty";
 
   const pod = resolvePod(name, flags);
@@ -1213,6 +1268,14 @@ function kubectlExec(name: string | undefined, rest: string, flags: KubectlFlags
 
 interface ManifestAction {
   verb: "apply" | "delete";
+
+  /*
+   * Keep the original user-supplied filename in addition to the resolved
+   * manifest paths. This lets the lab recognize deliberate attempts to
+   * apply ~/.kube/config or the current working directory even though
+   * neither is a Kubernetes manifest.
+   */
+  filename: string;
   paths: string[];
 }
 
@@ -1242,7 +1305,8 @@ function parsePodManifest(content: string): Pod | undefined {
   const runtimeClassMatch = /^\s{2}runtimeClassName:\s*(.+)$/m.exec(content);
   const runtimeClass = yamlScalar(runtimeClassMatch?.[1]) ?? null;
 
-  const privilegedMatch = /^\s{6}privileged:\s*(true|false)\s*$/m.exec(content);
+  const privilegedMatch =
+    /^\s{6}privileged:\s*(true|false)\s*$/m.exec(content);
   const privileged = privilegedMatch?.[1] === "true";
 
   const annotations: Record<string, string> = {};
@@ -1264,6 +1328,7 @@ function parsePodManifest(content: string): Pod | undefined {
   }
 
   const template = podTemplates.get(name);
+
   const pod: Pod = {
     name,
     namespace,
@@ -1327,8 +1392,48 @@ function parseManifestAction(tokens: string[]): ManifestAction | undefined {
 
   return {
     verb,
+    filename,
     paths: manifestPaths(filename),
   };
+}
+
+/*
+ * Easter egg for attempts to apply the kubeconfig or the current working
+ * directory.
+ *
+ * These are intentionally checked against the original argument rather than
+ * the resolved manifest list. The kubeconfig doesn't exist as a readable
+ * virtual file in the lab, and that's exactly why the special case needs to
+ * happen before normal manifest resolution.
+ */
+const EDERA_ON_EASTER_EGG = [
+  "Nice try. That's not a Kubernetes manifest.",
+  "",
+  "If you're looking for a less hands-on way to run Edera,",
+  "you can sign up for a free trial of EderaOn:",
+  "",
+  "https://on.edera.dev",
+].join("\n");
+
+function isEderaOnEasterEgg(input: string): boolean {
+  const trimmed = input.trim();
+
+  /*
+   * The shell doesn't currently perform environment-variable expansion, so
+   * explicitly recognize the common ways a player might refer to $PWD.
+   */
+  const expanded =
+    trimmed === "$PWD" || trimmed === "${PWD}"
+      ? state.cwd
+      : trimmed;
+
+  const path = resolvePath(expanded);
+
+  return (
+    path === "/home/ivy/.kube/config" ||
+    path === "/home/ivy" ||
+    path === state.cwd
+  );
 }
 
 function syncZoneForPod(pod: Pod): void {
@@ -1375,7 +1480,9 @@ function applyManifest(path: string): string {
     return `error: unable to parse Pod manifest "${path}"`;
   }
 
-  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+  const existingIndex = pods.findIndex(
+    (existing) => existing.name === pod.name,
+  );
 
   if (existingIndex === -1) {
     pods.push(pod);
@@ -1389,7 +1496,9 @@ function applyManifest(path: string): string {
 }
 
 function removePod(pod: Pod): void {
-  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+  const existingIndex = pods.findIndex(
+    (existing) => existing.name === pod.name,
+  );
 
   if (existingIndex !== -1) {
     pods.splice(existingIndex, 1);
@@ -1427,7 +1536,9 @@ function deleteManifest(path: string): string {
     return `error: unable to parse Pod manifest "${path}"`;
   }
 
-  const existingIndex = pods.findIndex((existing) => existing.name === pod.name);
+  const existingIndex = pods.findIndex(
+    (existing) => existing.name === pod.name,
+  );
 
   if (existingIndex === -1) {
     return `Error from server (NotFound): pods "${pod.name}" not found`;
@@ -1439,6 +1550,13 @@ function deleteManifest(path: string): string {
 }
 
 function kubectlManifestAction(action: ManifestAction): string {
+  /*
+   * Deliberately only applies to `kubectl apply`, not delete.
+   */
+  if (action.verb === "apply" && isEderaOnEasterEgg(action.filename)) {
+    return EDERA_ON_EASTER_EGG;
+  }
+
   if (action.paths.length === 0) {
     return [
       `error: no manifest files matched`,
@@ -1481,10 +1599,14 @@ function kubectl(raw: string): string {
 
   const isPod = ["pod", "pods", "po"].includes(resource ?? "");
   const isNode = ["node", "nodes", "no"].includes(resource ?? "");
-  const isNamespace = ["namespace", "namespaces", "ns"].includes(resource ?? "");
-  const isRuntimeClass = ["runtimeclass", "runtimeclasses", "rc"].includes(
+  const isNamespace = ["namespace", "namespaces", "ns"].includes(
     resource ?? "",
   );
+  const isRuntimeClass = [
+    "runtimeclass",
+    "runtimeclasses",
+    "rc",
+  ].includes(resource ?? "");
 
   if (verb === "exec") {
     return kubectlExec(resource, tail.join(" "), flags);
@@ -1495,7 +1617,7 @@ function kubectl(raw: string): string {
     return getPods(flags);
   }
 
-  if (verb === "get" && isNode) return getNodes();
+  if (verb === "get" && isNode) return getNodes(flags.wide);
   if (verb === "get" && isNamespace) return getNamespaces();
   if (verb === "get" && isRuntimeClass) return getRuntimeClass();
 
@@ -1704,12 +1826,20 @@ function zoneLogs(name: string | undefined, follow: boolean): string {
 
     if (zone.pod) {
       const pod = findPod(zone.pod);
+
       if (pod) {
-        lines.push(`[zone ${zone.name}] workload ${pod.name} running image ${pod.image}`);
+        lines.push(
+          `[zone ${zone.name}] workload ${pod.name} running image ${pod.image}`,
+        );
       }
     }
 
-    if (follow && zone.name === "my-zone" && zone.pod === "web" && currentStage()?.title === "Launch a zoned workload") {
+    if (
+      follow &&
+      zone.name === "my-zone" &&
+      zone.pod === "web" &&
+      currentStage()?.title === "Launch a zoned workload"
+    ) {
       lines.push("[zone my-zone] following logs for workload web");
       lines.push("[zone my-zone] nginx: worker process started");
       lines.push("[zone my-zone] GET / HTTP/1.1 200");
@@ -1860,12 +1990,16 @@ function protectCli(input: string): string {
   if (command === "zone") {
     if (subcommand === "list") return zoneList(input, name);
     if (subcommand === "create") return zoneCreate(name);
-    if (subcommand === "logs") return zoneLogs(name, input.includes("--follow"));
+    if (subcommand === "logs") {
+      return zoneLogs(name, input.includes("--follow"));
+    }
   }
 
   if (command === "image") {
     if (subcommand === "list") return imageList(input);
-    if (subcommand === "list-kernel-variants") return listKernelVariants();
+    if (subcommand === "list-kernel-variants") {
+      return listKernelVariants();
+    }
   }
 
   if (command === "workload") {
@@ -1905,7 +2039,9 @@ function submit(value: string): string {
     const earlier = stages
       .slice(0, state.stage)
       .some((past) =>
-        past.answers.some((candidate) => candidate.toLowerCase() === answer),
+        past.answers.some(
+          (candidate) => candidate.toLowerCase() === answer,
+        ),
       );
 
     if (earlier) {
@@ -2012,11 +2148,17 @@ async function runCommand(command: string): Promise<string> {
   }
 
   /* kubectl keeps original case: namespaces and pod names are case sensitive. */
-  if (normalized === "kubectl" || normalized.startsWith("kubectl ")) {
+  if (
+    normalized === "kubectl" ||
+    normalized.startsWith("kubectl ")
+  ) {
     return kubectl(raw);
   }
 
-  if (normalized === "protect" || normalized.startsWith("protect ")) {
+  if (
+    normalized === "protect" ||
+    normalized.startsWith("protect ")
+  ) {
     return protectCli(normalized);
   }
 
@@ -2029,6 +2171,7 @@ async function runCommand(command: string): Promise<string> {
   if (binary === "pwd") return state.cwd;
   if (binary === "whoami") return "ivy";
   if (binary === "hostname") return NODE.name;
+
   if (binary === "uname") {
     return args.includes("-a") || args.includes("-r")
       ? `Linux ${NODE.name} ${NODE.kernelVersion} x86_64 GNU/Linux`
@@ -2050,7 +2193,9 @@ async function runCommand(command: string): Promise<string> {
   if (binary === "tree") {
     const path = resolvePath(args[0] ?? state.cwd);
 
-    if (!directories.has(path)) return `tree: ${args[0] ?? path}: not a directory`;
+    if (!directories.has(path)) {
+      return `tree: ${args[0] ?? path}: not a directory`;
+    }
 
     return [path, ...treeFrom(path)].join("\n");
   }
@@ -2244,7 +2389,6 @@ function renderFlags(): string {
     </section>
   `;
 }
-
 
 function renderTerminalOutput(value: string): string {
   const lines = value.split("\n");
@@ -2585,7 +2729,10 @@ function attachTerminalHandlers(): void {
 
     if (result) {
       terminalHistory.push({
-        type: command.trim().toLowerCase() === "help" ? "html" : "output",
+        type:
+          command.trim().toLowerCase() === "help"
+            ? "html"
+            : "output",
         text: result,
       });
     }
