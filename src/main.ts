@@ -497,7 +497,7 @@ const helpSections: HelpSection[] = [
         description: "List the namespaces in the cluster.",
       },
       {
-        command: "kubectl get nodes [-o wide]",
+        command: "kubectl get nodes [-o wide] [--show-labels]",
         description:
           "List nodes, optionally with IP and system information.",
       },
@@ -1005,7 +1005,7 @@ function kubectlUsage(): string {
     "  kubectl get pods [-A] [-o wide] [--show-labels] [-l app=<name>]",
     "  kubectl get pod <name> -n <namespace> -o yaml",
     "  kubectl describe pod <name> -n <namespace>",
-    "  kubectl get nodes [-o wide]",
+    "  kubectl get nodes [-o wide] [--show-labels]",
     "  kubectl describe node worker-02",
     "  kubectl get namespaces",
     "  kubectl get runtimeclass",
@@ -1141,16 +1141,20 @@ function getPodYaml(name: string | undefined, flags: KubectlFlags): string {
  * `kubectl get nodes -o wide` exposes the node's address and system details,
  * just like the real kubectl output.
  */
-function getNodes(wide = false): string {
+function getNodes(flags: KubectlFlags): string {
   const headers = ["NAME", "STATUS", "ROLES", "AGE", "VERSION"];
 
-  if (wide) {
+  if (flags.wide) {
     headers.push(
       "INTERNAL-IP",
       "OS-IMAGE",
       "KERNEL-VERSION",
       "CONTAINER-RUNTIME",
     );
+  }
+
+  if (flags.showLabels) {
+    headers.push("LABELS");
   }
 
   const row = [
@@ -1161,12 +1165,20 @@ function getNodes(wide = false): string {
     "v1.31.4",
   ];
 
-  if (wide) {
+  if (flags.wide) {
     row.push(
       NODE.ip,
       NODE.os,
       NODE.kernelVersion,
       NODE.runtime,
+    );
+  }
+
+  if (flags.showLabels) {
+    row.push(
+      Object.entries(NODE.labels)
+        .map(([key, value]) => (value ? `${key}=${value}` : key))
+        .join(","),
     );
   }
 
@@ -1617,7 +1629,7 @@ function kubectl(raw: string): string {
     return getPods(flags);
   }
 
-  if (verb === "get" && isNode) return getNodes(flags.wide);
+  if (verb === "get" && isNode) return getNodes(flags);
   if (verb === "get" && isNamespace) return getNamespaces();
   if (verb === "get" && isRuntimeClass) return getRuntimeClass();
 
@@ -1757,26 +1769,21 @@ function workloadLaunch(input: string): string {
     return `error: workload "${workloadName}" already exists`;
   }
 
-  let zone = findZone(zoneName);
+  const zone = findZone(zoneName);
 
   if (!zone) {
-    zone = {
-      name: zoneName,
-      id: `z-${Math.random().toString(16).slice(2, 8)}`,
-      state: "ready",
-      cpus: 2,
-      memory: "2048MB",
-      kernel: ZONE_KERNEL,
-      pod: workloadName,
-    };
-    zones.push(zone);
-  } else if (zone.state !== "ready") {
-    return `error: zone "${zoneName}" is not ready`;
-  } else if (zone.pod) {
-    return `error: zone "${zoneName}" already has workload "${zone.pod}"`;
-  } else {
-    zone.pod = workloadName;
+    return `error: zone "${zoneName}" not found`;
   }
+
+  if (zone.state !== "ready") {
+    return `error: zone "${zoneName}" is not ready`;
+  }
+
+  if (zone.pod) {
+    return `error: zone "${zoneName}" already has workload "${zone.pod}"`;
+  }
+
+  zone.pod = workloadName;
 
   const pod: Pod = {
     name: workloadName,
