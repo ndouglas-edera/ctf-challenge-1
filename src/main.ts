@@ -353,10 +353,10 @@ const stages: Stage[] = [
     title: "Launch a zoned workload",
     objective: "Create a zone, launch nginx into it, and follow its zone logs.",
     brief: [
-      "Create a zone named my-zone, launch web with nginx:latest",
-      "into it, list the workload, then follow the zone logs.",
+      "Create a zone named my-zone, launch web-server with nginx:latest",
+      "into it, list the workload, then follow the zone logs and submit the final flag.",
     ],
-    answers: [],
+    answers: ["EDERA{ZONE_WORKLOAD_LAUNCH}"],
     flag: "EDERA{ZONE_WORKLOAD_LAUNCH}",
     reward: [
       "The workload is running inside its own Edera zone.",
@@ -1847,18 +1847,19 @@ function zoneLogs(name: string | undefined, follow: boolean): string {
     if (
       follow &&
       zone.name === "my-zone" &&
-      zone.pod === "web" &&
+      zone.pod === "web-server" &&
       currentStage()?.title === "Launch a zoned workload"
     ) {
-      lines.push("[zone my-zone] following logs for workload web");
+      lines.push("[zone my-zone] following logs for workload web-server");
       lines.push("[zone my-zone] nginx: worker process started");
       lines.push("[zone my-zone] GET / HTTP/1.1 200");
       lines.push("");
-      lines.push("FLAG CAPTURED");
-      lines.push("-------------");
+      lines.push("FINAL FLAG");
+      lines.push("----------");
       lines.push("EDERA{ZONE_WORKLOAD_LAUNCH}");
-      state.captured.push("EDERA{ZONE_WORKLOAD_LAUNCH}");
-      state.stage++;
+      lines.push("");
+      lines.push("Submit this flag to complete the CTF:");
+      lines.push("submit EDERA{ZONE_WORKLOAD_LAUNCH}");
     }
 
     return lines.join("\n");
@@ -2031,7 +2032,14 @@ function submit(value: string): string {
   const stage = currentStage();
 
   if (!stage) {
-    return "All flags captured. There is nothing left to submit.";
+    return [
+      "CTF COMPLETE",
+      "-----------",
+      "All six flags captured and submitted.",
+      "",
+      "Your reward is waiting for you:",
+      "https://edera.dev/love",
+    ].join("\n");
   }
 
   const answer = value.trim().toLowerCase().replace(/^["']|["']$/g, "");
@@ -2085,10 +2093,12 @@ function submit(value: string): string {
     next
       ? `Objective ${String(state.stage + 1).padStart(2, "0")}: ${next.objective}`
       : [
-          "All six flags captured.",
+          "CTF COMPLETE",
+          "-----------",
+          "All six flags captured and submitted.",
           "",
-          "A workload was launched into its own Edera zone.",
           "The final flag was emitted by the zone log stream.",
+          "A workload was launched into its own Edera zone.",
           "",
           "Your reward is waiting for you:",
           "https://edera.dev/love",
