@@ -39,11 +39,12 @@ Insert description
 | Objective                     | Command that yields it                                        | Answer                                            |
 | :---------------------------- | :-----------------------------------------------------------: | ------------------------------------------------: |
 | 1. Zone kernel image          | ```kubectl describe pod image-processor-a -n customer-a```    | ```submit ghcr.io/edera-dev/zone-kernel:6.15```   |
-| 2. Cached digest              | ```protect image list```                                      | ```submit sha256:8c4f2a91d7e3b06547ac1fe920dd35b8746c0a29e1fb5d3c88ea47612d90bf5a```  |
-| 3. Kernel variant             | ```protect image list-kernel-variants```                      | ```submit ebpf```                                 |
+| 2. Cached digests              | ```protect image list```                                      | ```submit sha256:8c4f2a91d7e3b06547ac1fe920dd35b8746c0a29e1fb5d3c88ea47612d90bf5a```  |
+| 3. Kernel variants             | ```protect image list-kernel-variants```                      | ```submit ebpf```                                 |
 | 4. Failed zone                | ```protect zone list --selector status.state=failed```        | ```submit zone-analytics-d```                     |
-| 5. Workload with no zone      | ```protect zone list```                                       |                                                   |
-| 5. Workload with no zone      | ```protect workload list```                                   |                                                   |
-| 5. Workload with no zone      | ```kubectl get pod -n customer-c recommendation-c -o yaml```  | ```submit recommendation-c```                     |
-| 6. Kernel it actually runs    | ```protect zone launch --name my-zone```                      |                                                   |
-| 6. Kernel it actually runs    | ```protect workload launch --zone my-test-zone --name web-server nginx:latest```  | ```submit 6.1.0-edera-host``` |
+| 5. List zones      | ```protect zone list```                                       |                                                   |
+| 5. List workloads      | ```protect workload list```                                   |                                                   |
+| 5. Find workload without zone      | ```kubectl get pod -n customer-c recommendation-c -o yaml```  | ```submit recommendation-c```                     |
+| 6. Launch a zone    | ```protect zone launch --name my-zone```                      |                                                   |
+| 6. Launch workload in zone    | ```protect workload launch --zone my-zone --name web-server nginx:latest```  |                                    |
+| 6. Check the logs    | ```protect zone logs my-zone --follow```                      | ```submit 6.1.0-edera-host```      |
