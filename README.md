@@ -43,7 +43,7 @@ Insert description
 | 3. Kernel variant             | ```protect image list-kernel-variants```                      | ```submit ebpf```                                 |
 | 4. Failed zone                | ```protect zone list --selector status.state=failed```        | ```submit zone-analytics-d```                     |
 | 5. Workload with no zone      | ```protect zone list```                                       |                                                   |
-| 5. Workload with no zone      | ```protect zone workloads```                                  |                                                   |
+| 5. Workload with no zone      | ```protect workload list```                                   |                                                   |
 | 5. Workload with no zone      | ```kubectl get pod -n customer-c recommendation-c -o yaml```  | ```submit recommendation-c```                     |
 | 6. Kernel it actually runs    | ```protect zone launch --name my-zone```                      |                                                   |
 | 6. Kernel it actually runs    | ```protect workload launch --zone my-test-zone --name web-server nginx:latest```  | ```submit 6.1.0-edera-host``` |
