@@ -39,7 +39,7 @@ Insert description
 | Objective                     | Command that yields it                                     | Answer                                          |
 | :---------------------------- | :--------------------------------------------------------: | ----------------------------------------------: |
 | 1. Zone kernel image          | ```kubectl describe pod image-processor-a```               | ```submit ghcr.io/edera-dev/zone-kernel:6.15``` |
-| 2. Cached digest              | ```protect image list --output table```                    | ```submit sha256:8c4f2a91d7e3b06547ac1fe920dd35b8746c0a29e1fb5d3c88ea47612d90bf5a```                   |
+| 2. Cached digest              | ```protect image list```                    | ```submit sha256:8c4f2a91d7e3b06547ac1fe920dd35b8746c0a29e1fb5d3c88ea47612d90bf5a```                   |
 | 3. Kernel variant             | ```protect image list-kernel-variants```                   | ```submit ebpf```                               |
 | 4. Failed zone                | ```protect zone list --selector status.state=failed```     | ```submit zone-analytics-d```                   |
 | 5. Workload with no zone      | ```protect zone list``` + <br/> ```kubectl get pod -n customer-c recommendation-c -o yaml```  | ```submit recommendation-c```                   |
