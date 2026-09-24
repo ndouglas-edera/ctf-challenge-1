@@ -374,7 +374,7 @@ const state: GameState = {
   commandCount: 0,
   inspected: new Set<string>(),
   zonesListed: false,
-  cwd: "/home/platform",
+  cwd: "/home/ivy",
   namespace: "default",
 };
 
@@ -630,7 +630,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function prompt(): string {
-  const home = "/home/platform";
+  const home = "/home/ivy";
   const path =
     state.cwd === home
       ? "~"
@@ -638,7 +638,7 @@ function prompt(): string {
         ? `~${state.cwd.slice(home.length)}`
         : state.cwd;
 
-  return `root@worker-02:${path}$`;
+  return `ivy@worker-02:${path}$`;
 }
 
 function complete(): boolean {
@@ -695,8 +695,8 @@ const directories = new Set<string>([
   "/etc/edera",
   "/etc/kubernetes",
   "/home",
-  "/home/platform",
-  "/home/platform/manifests",
+  "/home/ivy",
+  "/home/ivy/manifests",
   "/proc",
   "/var",
   "/var/lib",
@@ -763,13 +763,13 @@ const virtualFiles: Record<string, string> = {
 
   "/var/lib/edera/protect/daemon.socket": "",
 
-  "/home/platform/.profile": [
-    "# platform engineer, worker-02",
-    "export KUBECONFIG=/home/platform/.kube/config",
+  "/home/ivy/.profile": [
+    "# ivy engineer, worker-02",
+    "export KUBECONFIG=/home/ivy/.kube/config",
     "export EDERA_SOCKET=/var/lib/edera/protect/daemon.socket",
   ].join("\n"),
 
-  "/home/platform/README": [
+  "/home/ivy/README": [
     "Node audit notes",
     "----------------",
     "Manifests for everything scheduled here are in ./manifests.",
@@ -781,8 +781,8 @@ const virtualFiles: Record<string, string> = {
 
 /* Each workload's manifest, as applied. */
 for (const pod of pods) {
-  virtualFiles[`/home/platform/manifests/${pod.name}.yaml`] = manifestFor(pod);
-  directories.add("/home/platform/manifests");
+  virtualFiles[`/home/ivy/manifests/${pod.name}.yaml`] = manifestFor(pod);
+  directories.add("/home/ivy/manifests");
 }
 
 function resolvePath(input: string): string {
@@ -791,7 +791,7 @@ function resolvePath(input: string): string {
     : state.cwd.split("/").filter(Boolean);
 
   const expanded = input.startsWith("~")
-    ? `/home/platform${input.slice(1)}`
+    ? `/home/ivy${input.slice(1)}`
     : input;
 
   const segments = expanded.startsWith("/")
@@ -848,7 +848,7 @@ function listDirectory(input: string, long: boolean, showHidden: boolean): strin
       const isDir = directories.has(full);
       const size = isDir ? 4096 : (virtualFiles[full]?.length ?? 0);
 
-      return `${isDir ? "drwxr-xr-x" : "-rw-r--r--"}  1 platform platform ${String(
+      return `${isDir ? "drwxr-xr-x" : "-rw-r--r--"}  1 ivy ivy ${String(
         size,
       ).padStart(6)} ${entry}`;
     }),
@@ -870,7 +870,7 @@ function treeFrom(path: string, prefix = ""): string[] {
 }
 
 function changeDirectory(input: string | undefined): string {
-  const path = resolvePath(input ?? "/home/platform");
+  const path = resolvePath(input ?? "/home/ivy");
 
   if (directories.has(path)) {
     state.cwd = path;
@@ -953,7 +953,7 @@ function parseFlags(tokens: string[]): KubectlFlags {
 
 /*
  * Every workload is labelled as Edera-managed. A label is a claim the author
- * wrote down, not something the platform enforces — one of these pods does
+ * wrote down, not something the ivy enforces — one of these pods does
  * not back it up in its spec.
  */
 function labelsFor(pod: Pod): Record<string, string> {
@@ -1673,8 +1673,8 @@ function workloadLaunch(input: string): string {
   };
 
   pods.push(pod);
-  virtualFiles[`/home/platform/manifests/${pod.name}.yaml`] = manifestFor(pod);
-  directories.add("/home/platform/manifests");
+  virtualFiles[`/home/ivy/manifests/${pod.name}.yaml`] = manifestFor(pod);
+  directories.add("/home/ivy/manifests");
 
   return [
     `workload/${pod.name} launched`,
@@ -2027,7 +2027,7 @@ async function runCommand(command: string): Promise<string> {
   const [binary, ...args] = raw.split(/\s+/);
 
   if (binary === "pwd") return state.cwd;
-  if (binary === "whoami") return "platform";
+  if (binary === "whoami") return "ivy";
   if (binary === "hostname") return NODE.name;
   if (binary === "uname") {
     return args.includes("-a") || args.includes("-r")
@@ -2057,9 +2057,9 @@ async function runCommand(command: string): Promise<string> {
 
   if (binary === "env") {
     return [
-      "USER=platform",
+      "USER=ivy",
       `HOSTNAME=${NODE.name}`,
-      "KUBECONFIG=/home/platform/.kube/config",
+      "KUBECONFIG=/home/ivy/.kube/config",
       "EDERA_SOCKET=/var/lib/edera/protect/daemon.socket",
       `PWD=${state.cwd}`,
     ].join("\n");
@@ -2073,7 +2073,7 @@ async function runCommand(command: string): Promise<string> {
         ["612", "root", "/usr/sbin/protect-daemon"],
         ["988", "root", "containerd"],
         ["1204", "root", "kubelet"],
-        ["2871", "platform", "-bash"],
+        ["2871", "ivy", "-bash"],
       ],
     );
   }
