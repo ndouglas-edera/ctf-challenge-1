@@ -730,7 +730,7 @@ const virtualFiles: Record<string, string> = {
   "/etc/hostname": NODE.name,
 
   "/etc/os-release": [
-    'NAME="Edera Protect Host"',
+    'NAME="Ubuntu 20.04 LTS"',
     'VERSION="1.4"',
     "ID=edera",
     "VARIANT=worker",
@@ -2402,7 +2402,7 @@ function render(): void {
           <div class="mission-meta">
             <div>
               <span>ENVIRONMENT</span>
-              <strong>EDERA PROTECT</strong>
+              <strong>KUBERNETES</strong>
             </div>
 
             <div>
