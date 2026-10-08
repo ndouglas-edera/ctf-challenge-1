@@ -1,4 +1,5 @@
 import "./style.css";
+import "./edera-chrome.css";
 
 interface Pod {
   name: string;
@@ -2527,18 +2528,14 @@ function render(): void {
 
   app.innerHTML = `
     <div class="game">
-      <header class="topbar">
-        <div class="brand-lockup">
-          <div class="brand-name">EDERA</div>
-          <div class="brand-subtitle">ISOLATION RESEARCH LAB</div>
-        </div>
-
-        <div class="challenge-lockup"></div>
-
-        <div class="online-status">
-          <span></span>
-          LAB ONLINE
-        </div>
+      <header class="top-header">
+        <a href="https://edera.dev" class="logo-link">EDERA</a>
+        <a
+          href="https://on.edera.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="edera-free-cta"
+        >Try out Edera for free →</a>
       </header>
 
       <main class="main">
@@ -2658,9 +2655,23 @@ function render(): void {
             : ""
         }
 
-        <footer class="footer">
-          <span>EDERA / ISOLATION RESEARCH LAB</span>
-          <span>THE BOUNDARY / SECURITY CHALLENGE 01</span>
+        <div
+          class="edera-free-bottom"
+        >
+          <a
+            href="https://on.edera.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Try out Edera for free →</a>
+        </div>
+
+        <footer class="edera-footer">
+          <img
+            src="https://docs.edera.dev/Ivy%20Headphones.png"
+            alt="Ivy from Edera"
+            loading="lazy"
+          />
+          <span>Made with love by the team at <a href="https://edera.dev/love" target="_blank" rel="noopener noreferrer">Edera</a></span>
         </footer>
       </main>
     </div>
