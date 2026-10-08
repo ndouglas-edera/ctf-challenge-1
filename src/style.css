@@ -1373,6 +1373,34 @@ a {
   }
 }
 
+@media (max-width: 768px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .challenge-lockup {
+    display: none;
+  }
+
+  .brand-name {
+    width: 96px;
+    height: 36px;
+    border-width: 3px;
+    font-size: 20px;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .edera-free-cta {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 620px) {
   .topbar {
     border-radius: 20px;
