@@ -2535,7 +2535,7 @@ function render(): void {
           target="_blank"
           rel="noopener noreferrer"
           class="edera-free-cta"
-        >Try out Edera for free →</a>
+        >Try Edera for free →</a>
       </header>
 
       <main class="main">
