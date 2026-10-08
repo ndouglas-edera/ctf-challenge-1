@@ -2659,10 +2659,10 @@ function render(): void {
           class="edera-free-bottom"
         >
           <a
-            href="https://on.edera.dev"
+            href="https://ndouglas-edera.github.io/my-webernetes-demo/"
             target="_blank"
             rel="noopener noreferrer"
-          >Try out Edera for free →</a>
+          >Try our Webernetes Demo →</a>
         </div>
 
         <footer class="edera-footer">
