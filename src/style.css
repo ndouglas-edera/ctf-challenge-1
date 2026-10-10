@@ -1071,8 +1071,8 @@ a {
 /*
  * Captured Flags empty state.
  *
- * The card itself uses the light mint background, so the old muted color
- * (#78aaa4) was too faint on mobile and low-contrast in general.
+ * Keep the instructional copy readable, but make the actionable
+ * terminal commands use the same cyan treatment as `ivy@worker-02:~$`.
  */
 .flag-empty {
   color: #356d67;
@@ -1087,19 +1087,24 @@ a {
   margin-top: 3px;
 }
 
+
+/* Color the CTF objectives */
+.objective-strip strong {
+  color: var(--edera-cyan);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+
 /*
- * The two actionable terminal commands in the empty Captured Flags card
- * use the same Edera lime as the terminal's live/status accents.
- *
- * The quotes remain part of the sentence; only the command itself is
- * highlighted through the markup-independent text treatment below.
+ * Commands intentionally match `.terminal-prompt`.
+ * This makes `objective` and `submit <flag>` read as terminal
+ * actions rather than as generic highlighted text.
  */
-.flag-empty {
-  /*
-   * Keep the overall explanatory copy readable while allowing the
-   * command-like text to inherit a stronger treatment.
-   */
-  text-shadow: none;
+.flag-empty code {
+  color: var(--edera-cyan);
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(0, 229, 212, 0.22);
 }
 
 .flag-empty code {
