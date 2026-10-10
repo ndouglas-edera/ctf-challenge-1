@@ -1,5 +1,5 @@
 # CTF Challenge 1
-This is our first ever CTF-style challenge to discover security shortfalls of a shared Linux kernel in Kubernetes
+This is our first ever CTF-style challenge to discover security shortfalls of a shared Linux kernel in Kubernetes.
 
 ## Challenge Layout
 
@@ -23,7 +23,7 @@ This is our first ever CTF-style challenge to discover security shortfalls of a 
 ```
 
 ## Flag 1
-Edera supports heterogeneous, mixed-workload clusters, but running mixed runtime classes on the same individual node is discouraged due to resource management trade-offs. Find the pod that has no assigned runtimeClassName.
+Edera supports heterogeneous, mixed-workload clusters, but running mixed runtime classes on the same individual node is discouraged due to resource management trade-offs. Find the pod that has no assigned **[runtimeClassName](https://kubernetes.io/docs/concepts/containers/runtime-class/#usage)**.
 ```
 kubectl describe pod -n customer-c   recommendation-c
 ```
