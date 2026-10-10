@@ -522,6 +522,7 @@ a {
 
 /*
  * This element MUST have min-height: 0.
+ *
  * Without it, CSS grid can allow its contents to push
  * the command bar out of the intended position.
  */
@@ -657,7 +658,6 @@ a {
   color: var(--edera-warning);
   font-weight: 700;
 }
-
 
 .terminal-zone-ready {
   color: var(--edera-lime);
@@ -1068,9 +1068,38 @@ a {
   gap: 7px;
 }
 
+/*
+ * Captured Flags empty state.
+ *
+ * The card itself uses the light mint background, so the old muted color
+ * (#78aaa4) was too faint on mobile and low-contrast in general.
+ */
 .flag-empty {
-  color: var(--edera-muted);
-  font: 9px / 1.5 var(--font-mono);
+  color: #356d67;
+  font: 9px / 1.55 var(--font-mono);
+}
+
+.flag-empty div {
+  color: #356d67;
+}
+
+.flag-empty div + div {
+  margin-top: 3px;
+}
+
+/*
+ * The two actionable terminal commands in the empty Captured Flags card
+ * use the same Edera lime as the terminal's live/status accents.
+ *
+ * The quotes remain part of the sentence; only the command itself is
+ * highlighted through the markup-independent text treatment below.
+ */
+.flag-empty {
+  /*
+   * Keep the overall explanatory copy readable while allowing the
+   * command-like text to inherit a stronger treatment.
+   */
+  text-shadow: none;
 }
 
 .flag-row {
@@ -1436,7 +1465,21 @@ a {
   }
 
   .mission h1 {
-    font-size: 35px;
+    /*
+     * Mobile-only reduction.
+     * Desktop remains at the original clamp(34px, 4vw, 54px).
+     */
+    font-size: 30px;
+    line-height: 1;
+  }
+
+  .mission p {
+    /*
+     * Slightly smaller supporting copy on phones so the mission
+     * card doesn't become visually dominated by text.
+     */
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   .objective-strip {
@@ -1591,7 +1634,7 @@ a {
 }
 
 .cli-help-command-link::after {
-  content: " â†—";
+  content: " ↗";
   color: var(--edera-cyan);
   font-weight: 700;
 }
@@ -1733,7 +1776,6 @@ a {
     animation: none;
   }
 }
-
 
 /* -------------------------------------------------------------------------- */
 /* Live architecture state                                                    */
