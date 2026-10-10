@@ -1098,19 +1098,17 @@ a {
 
 /*
  * Commands intentionally match `.terminal-prompt`.
- * This makes `objective` and `submit <flag>` read as terminal
- * actions rather than as generic highlighted text.
+ * The cyan only reads well on the dark terminal background, so each
+ * command gets a small terminal-coloured pill rather than bare cyan
+ * text on the light mint card (which would be ~1.5:1 contrast).
  */
 .flag-empty code {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--edera-terminal);
   color: var(--edera-cyan);
   font-weight: 700;
-  text-shadow: 0 0 10px rgba(0, 229, 212, 0.22);
-}
-
-.flag-empty code {
-  color: var(--edera-lime);
-  font-weight: 700;
-  text-shadow: 0 0 10px rgba(184, 255, 60, 0.22);
+  white-space: nowrap;
 }
 
 .flag-row {
