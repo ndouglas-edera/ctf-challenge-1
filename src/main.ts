@@ -2393,7 +2393,11 @@ function renderFlags(): string {
       <div class="flag-list">
         ${
           state.captured.length === 0
-            ? `<div class="flag-empty">Run 'objective' in the terminal to start.</div>`
+            ? `
+            <div class="flag-empty">
+              <div>Run 'objective' in the terminal to start.</div>
+              <div>Submit your answer with 'submit &lt;flag&gt;'.</div>
+            </div>`
             : state.captured
                 .map(
                   (flag, index) => `
