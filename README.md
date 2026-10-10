@@ -32,6 +32,26 @@ Technically, an Edera-enabled node retains the default ```containerd``` runtime 
 Edera partitions host resources between ```dom0``` (the host system context) and ```domU``` (the isolated zone execution context). By default, ```dom0``` receives a constrained fraction of node memory (~35%). Running standard workloads in ```dom0``` can trigger out-of-memory (OOM) evictions before ```kubelet``` detects node-level memory pressure.
 
 ## Flag 2
+Edera caches container images locally for faster workload launches. <br/>
+There are several ways to list cached images, depending on your needs:
+```
+protect image list
+```
+```
+protect image list --output json-pretty
+```
+```
+protect image list --output table
+```
+Edera supports multiple image formats:
+- ```squashfs``` (default) - Compressed, read-only filesystem
+- ```tar``` - Standard tar archive
+- ```directory``` - Uncompressed directory
+
+Use ```squashfs``` for **production** environments. <br/>
+Use ```directory``` for **development** and **debugging**.
+
+## Flag 3
 **[Kernel variants](https://docs.edera.dev/guides/kernel/kernel-variants/)** are alternate zone kernel images with different features or extra capabilities or drivers. The daemon resolves from its ```[zone.kernel-variants]``` configuration. A kernel variant is a named, alternate zone kernel with different configuration or features than the default zone kernel. It is not necessary to specify a kernel variant most of the time, as Edera’s default zone kernel is generic, hardened, and supports all baseline features. Some features, such as GPU support, specifically require alternate kernel variants.
 <br/><br/>
 To list the usable kernel variants currently recognised by the daemon:
@@ -42,8 +62,10 @@ Those are the variants accepted by ```zone launch --kernel-variant``` and the ``
 <br/><br/>
 Kernel variants are always referenced by their name, such as nvidia, and are defined in the Edera daemon’s ```daemon.toml``` in the ```[zone.kernel-variants]``` section. Each variant name maps to a specific OCI image that contains that kernel. Edera ships with some default kernel variants, additional variants may be defined by the user. In a real-world scenario, you may want to host your own kernels in an OCI registry, and define your own site-local kernel variants as well.
 
-## Flag 3
+## Flag 4
 Insert Description.
+
+<br/><br/>
 
 ## Answers
 
