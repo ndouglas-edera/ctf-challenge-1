@@ -2039,7 +2039,7 @@ function submit(value: string): string {
       "All six flags captured and submitted.",
       "",
       "Your reward is waiting for you:",
-      "https://edera.dev/love",
+      "https://edera.dev/stories/disaggregated-kubernetes-contain-the-blast-radius",
     ].join("\n");
   }
 
@@ -2102,7 +2102,7 @@ function submit(value: string): string {
           "A workload was launched into its own Edera zone.",
           "",
           "Your reward is waiting for you:",
-          "https://edera.dev/love",
+          "https://edera.dev/stories/disaggregated-kubernetes-contain-the-blast-radius",
         ].join("\n"),
   ].join("\n");
 }
@@ -2645,9 +2645,10 @@ function render(): void {
                   because one field was missing from its spec. Your reward is
                   waiting at
                   <a
-                    href="https://edera.dev/love"
+                    href="https://edera.dev/stories/disaggregated-kubernetes-contain-the-blast-radius"
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener"
+                    referrerpolicy="origin"
                   >edera.dev/love</a>.
                 </p>
               </section>
