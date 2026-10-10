@@ -51,6 +51,8 @@ Edera supports multiple image formats:
 
 Use ```squashfs``` for **production** environments. <br/>
 Use ```directory``` for **development** and **debugging**.
+<br/><br/>
+Here is the **[Image Layer Details](https://hub.docker.com/layers/nvidia/cuda/13.3.0-devel-ubuntu26.04/images/sha256-37c6fde6d92de39732d3dab01a81f622700cac4951537ab6cb3f499d1e04afc9)** for the **NVIDIA CUDA** image used in this CTF challenge.
 
 ## Flag 3
 **[Kernel variants](https://docs.edera.dev/guides/kernel/kernel-variants/)** are alternate zone kernel images with different features or extra capabilities or drivers. The daemon resolves from its ```[zone.kernel-variants]``` configuration. A kernel variant is a named, alternate zone kernel with different configuration or features than the default zone kernel. It is not necessary to specify a kernel variant most of the time, as Edera’s default zone kernel is generic, hardened, and supports all baseline features. Some features, such as GPU support, specifically require alternate kernel variants.
