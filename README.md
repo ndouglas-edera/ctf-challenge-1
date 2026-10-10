@@ -36,7 +36,7 @@ Insert description
 
 ## Answers
 
-| Objective                     | Command that yields it                                        | Answer |
+| Objective                     | Commands                                      | Answer |
 | :---------------------------- | :-----------------------------------------------------------: | -----: |
 | 1. Zone kernel image          | `kubectl describe pod image-processor-a -n customer-a`       | `submit ghcr.io/edera-dev/zone-kernel:6.15` |
 | 2. Cached digests             | `protect image list`                                          | <code>submit sha256:8c4f2a91<wbr>d7e3b065<wbr>47ac1fe9<wbr>20dd35b8<wbr>746c0a29<wbr>e1fb5d3c<wbr>88ea4761<wbr>2d90bf5a</code> |
