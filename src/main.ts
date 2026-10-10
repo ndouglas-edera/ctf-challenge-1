@@ -58,6 +58,7 @@ const NODE = {
 
 const ZONE_KERNEL = "ghcr.io/edera-dev/zone-kernel:6.15";
 const ZONE_KERNEL_EBPF = "ghcr.io/edera-dev/zone-kernel:6.15-ebpf";
+const ZONE_KERNEL_NVIDIA = "ghcr.io/edera-dev/zone-kernel:6.15-nvidia";
 
 const pods: Pod[] = [
   {
@@ -192,7 +193,7 @@ const zones: Zone[] = [
  * and `kubectl delete -f` mutate the live state below, while the manifest
  * files themselves remain on the node so they can be applied again.
  */
-const podTemplates = new Map(
+const podTemplates = new Map<string, Pod>(
   pods.map((pod) => [
     pod.name,
     {
@@ -202,7 +203,7 @@ const podTemplates = new Map(
   ]),
 );
 
-const zoneTemplates = new Map(
+const zoneTemplates = new Map<string, Zone>(
   zones.map((zone) => [
     zone.name,
     {
@@ -211,6 +212,54 @@ const zoneTemplates = new Map(
     },
   ]),
 );
+
+/*
+ * Workloads that ship as raw manifests in ~/manifests and are applied with
+ * the same code path as `kubectl apply -f` before the lab starts. Their
+ * pod/zone templates are registered here so the apply can wire up a zone,
+ * but they are NOT in the initial arrays above: the boot-time apply is what
+ * puts them into the live cluster state.
+ */
+const GPU_WORKLOAD_MANIFEST_PATH = "/home/ivy/manifests/gpu-workload.yaml";
+
+const GPU_WORKLOAD_MANIFEST = [
+  "apiVersion: v1",
+  "kind: Pod",
+  "metadata:",
+  "  name: gpu-workload",
+  "  annotations:",
+  "    dev.edera/kernel-variant: nvidia",
+  "spec:",
+  "  runtimeClassName: edera",
+  "  containers:",
+  "    - name: workload",
+  "      image: nvidia/cuda:13.3.0-devel-ubuntu26.04",
+].join("\n");
+
+podTemplates.set("gpu-workload", {
+  name: "gpu-workload",
+  namespace: "default",
+  app: "workload",
+  node: NODE.name,
+  status: "Running",
+  privileged: false,
+  runtimeClass: "edera",
+  annotations: {
+    "dev.edera/kernel-variant": "nvidia",
+  },
+  zone: "zone-gpu-workload",
+  image: "nvidia/cuda:13.3.0-devel-ubuntu26.04",
+});
+
+zoneTemplates.set("zone-gpu-workload", {
+  name: "zone-gpu-workload",
+  id: "z-4e8b10",
+  state: "ready",
+  cpus: 4,
+  memory: "4096MB",
+  kernel: ZONE_KERNEL_NVIDIA,
+  pod: "gpu-workload",
+});
 
 const images: CachedImage[] = [
   {
@@ -241,6 +290,13 @@ const images: CachedImage[] = [
     format: "squashfs",
     size: "221.4MB",
   },
+  {
+    reference: ZONE_KERNEL_NVIDIA,
+    digest:
+      "sha256:e29a6c04f1b83d75902ce4a16fb07d3891ac25e60f4d9b17c3a85e02bd6f19c4",
+    format: "squashfs",
+    size: "187.3MB",
+  },
 ];
 
 const kernelVariants: KernelVariant[] = [
@@ -255,9 +311,9 @@ const kernelVariants: KernelVariant[] = [
     notes: "BTF + BPF LSM enabled",
   },
   {
-    name: "gpu",
-    image: "ghcr.io/edera-dev/zone-kernel:6.15-gpu",
-    notes: "passthrough drivers",
+    name: "nvidia",
+    image: ZONE_KERNEL_NVIDIA,
+    notes: "NVIDIA GPU passthrough drivers",
   },
 ];
 
@@ -340,7 +396,7 @@ const stages: Stage[] = [
     title: "Missing RuntimeClass",
     objective: "Find the workload running without a zone.",
     brief: [
-      "Five pods are scheduled. There are four zones, and one",
+      "Six pods are scheduled. There are five zones, and one",
       "of them failed. Name the pod that never asked for one.",
     ],
     answers: ["recommendation-c", "customer-c/recommendation-c"],
@@ -796,6 +852,18 @@ for (const pod of pods) {
   directories.add("/home/ivy/manifests");
 }
 
+/*
+ * Hand-written manifests are stored verbatim, then applied through the same
+ * path as `kubectl apply -f` so the lab starts with them already running.
+ */
+virtualFiles[GPU_WORKLOAD_MANIFEST_PATH] = GPU_WORKLOAD_MANIFEST;
+
+const bootApplyResult = applyManifest(GPU_WORKLOAD_MANIFEST_PATH);
+
+if (!bootApplyResult.startsWith("pod/")) {
+  console.error(`Boot-time apply failed: ${bootApplyResult}`);
+}
+
 function resolvePath(input: string): string {
   const base = input.startsWith("/")
     ? []
@@ -1233,11 +1301,11 @@ function describeNode(name: string | undefined): string {
 }
 
 function getNamespaces(): string {
-  const names = [...new Set(pods.map((pod) => pod.namespace))];
+  const names = [...new Set(["default", ...pods.map((pod) => pod.namespace)])];
 
   return table(
     ["NAME", "STATUS", "AGE"],
-    ["default", ...names].map((name) => [name, "Active", "41d"]),
+    names.map((name) => [name, "Active", "41d"]),
   );
 }
 
@@ -1302,24 +1370,32 @@ function yamlScalar(value: string | undefined): string | undefined {
 }
 
 function parsePodManifest(content: string): Pod | undefined {
-  const name = yamlScalar(/^\s{2}name:\s*(.+)$/m.exec(content)?.[1]);
-  const namespace = yamlScalar(
-    /^\s{2}namespace:\s*(.+)$/m.exec(content)?.[1],
-  );
+  /*
+   * Metadata fields sit at a fixed two-space indent. Container fields accept
+   * either common list style ("  - name:" or "    - name:"), and namespace
+   * falls back to "default" like the real kubectl does.
+   */
+  const name = yamlScalar(/^[ \t]{2}name:[ \t]*(.+)$/m.exec(content)?.[1]);
+  const namespace =
+    yamlScalar(/^[ \t]{2}namespace:[ \t]*(.+)$/m.exec(content)?.[1]) ??
+    "default";
   const containerName = yamlScalar(
-    /^\s{2}-\s+name:\s*(.+)$/m.exec(content)?.[1],
+    /^[ \t]*-[ \t]+name:[ \t]*(.+)$/m.exec(content)?.[1],
   );
-  const image = yamlScalar(/^\s{4}image:\s*(.+)$/m.exec(content)?.[1]);
+  const image = yamlScalar(
+    /^[ \t]+image:[ \t]*(.+)$/m.exec(content)?.[1],
+  );
 
-  if (!name || !namespace || !containerName || !image) {
+  if (!name || !containerName || !image) {
     return undefined;
   }
 
-  const runtimeClassMatch = /^\s{2}runtimeClassName:\s*(.+)$/m.exec(content);
+  const runtimeClassMatch =
+    /^[ \t]+runtimeClassName:[ \t]*(.+)$/m.exec(content);
   const runtimeClass = yamlScalar(runtimeClassMatch?.[1]) ?? null;
 
   const privilegedMatch =
-    /^\s{6}privileged:\s*(true|false)\s*$/m.exec(content);
+    /^[ \t]+privileged:[ \t]*(true|false)[ \t]*$/m.exec(content);
   const privileged = privilegedMatch?.[1] === "true";
 
   const annotations: Record<string, string> = {};
@@ -1329,7 +1405,7 @@ function parsePodManifest(content: string): Pod | undefined {
 
   if (annotationSection) {
     for (const line of annotationSection[1].split("\n")) {
-      const match = /^\s{4}([^:]+):\s*(.+)$/.exec(line);
+      const match = /^[ \t]{4,}([^:]+):[ \t]*(.+)$/.exec(line);
 
       if (!match) continue;
 
