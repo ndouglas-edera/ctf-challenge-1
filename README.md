@@ -32,7 +32,18 @@ Technically, an Edera-enabled node retains the default ```containerd``` runtime 
 Edera partitions host resources between ```dom0``` (the host system context) and ```domU``` (the isolated zone execution context). By default, ```dom0``` receives a constrained fraction of node memory (~35%). Running standard workloads in ```dom0``` can trigger out-of-memory (OOM) evictions before ```kubelet``` detects node-level memory pressure.
 
 ## Flag 2
-Insert description
+**[Kernel variants](https://docs.edera.dev/guides/kernel/kernel-variants/)** are alternate zone kernel images with different features or extra capabilities or drivers. The daemon resolves from its ```[zone.kernel-variants]``` configuration. A kernel variant is a named, alternate zone kernel with different configuration or features than the default zone kernel. It is not necessary to specify a kernel variant most of the time, as Edera’s default zone kernel is generic, hardened, and supports all baseline features. Some features, such as GPU support, specifically require alternate kernel variants.
+<br/><br/>
+To list the usable kernel variants currently recognised by the daemon:
+```
+protect image list-kernel-variants
+```
+Those are the variants accepted by ```zone launch --kernel-variant``` and the ````dev.edera/kernel-variant```` pod annotation.
+<br/><br/>
+Kernel variants are always referenced by their name, such as nvidia, and are defined in the Edera daemon’s ```daemon.toml``` in the ```[zone.kernel-variants]``` section. Each variant name maps to a specific OCI image that contains that kernel. Edera ships with some default kernel variants, additional variants may be defined by the user. In a real-world scenario, you may want to host your own kernels in an OCI registry, and define your own site-local kernel variants as well.
+
+## Flag 3
+Insert Description.
 
 ## Answers
 
