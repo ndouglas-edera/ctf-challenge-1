@@ -59,9 +59,9 @@ To list the usable kernel variants currently recognised by the daemon:
 ```
 protect image list-kernel-variants
 ```
-Those are the variants accepted by ```zone launch --kernel-variant``` and the ````dev.edera/kernel-variant```` pod annotation.
+Those are the variants accepted by ```zone launch --kernel-variant``` and the ````dev.edera/kernel-variant```` pod annotation. Kernel variants are always referenced by their name, such as nvidia, and are defined in the Edera daemon’s ```daemon.toml``` in the ```[zone.kernel-variants]``` section. 
 <br/><br/>
-Kernel variants are always referenced by their name, such as nvidia, and are defined in the Edera daemon’s ```daemon.toml``` in the ```[zone.kernel-variants]``` section. Each variant name maps to a specific OCI image that contains that kernel. Edera ships with some default kernel variants, additional variants may be defined by the user. In a real-world scenario, you may want to host your own kernels in an OCI registry, and define your own site-local kernel variants as well.
+Each variant name maps to a specific OCI image that contains that kernel. Edera ships with some default kernel variants, additional variants may be defined by the user. In a real-world scenario, you may want to host your own kernels in an OCI registry, and define your own site-local kernel variants as well.
 
 ## Flag 4
 Insert Description.
