@@ -293,7 +293,7 @@ const images: CachedImage[] = [
   {
     reference: ZONE_KERNEL_NVIDIA,
     digest:
-      "sha256:37c6fde6d92de39732d3dab01a81f622700cac4951537ab6cb3f499d1e04afc9",
+      "sha256:243be03aa10331842755b7e5c044aefb0c97978e8065d27d40aed4663094c900",
     format: "directory",
     size: "187.3MB",
   },
