@@ -1102,6 +1102,12 @@ a {
   text-shadow: none;
 }
 
+.flag-empty code {
+  color: var(--edera-lime);
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(184, 255, 60, 0.22);
+}
+
 .flag-row {
   display: flex;
   align-items: center;
