@@ -281,8 +281,8 @@ a {
   max-width: 820px;
   margin: 0 0 11px;
 
-  color: #2f6963;
-  font-size: 14px;
+  color: var(--edera-teal);
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -1403,15 +1403,33 @@ a {
 
 @media (max-width: 620px) {
   .topbar {
+    /* Keep the brand and CTA side by side on narrow screens. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
     border-radius: 20px;
   }
 
   .brand-lockup {
+    min-width: 0;
     gap: 7px;
+  }
+
+  .brand-name {
+    flex: 0 0 auto;
   }
 
   .brand-subtitle {
     display: none;
+  }
+
+  .edera-free-cta {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 9px 11px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .mission {
@@ -1574,7 +1592,7 @@ a {
 }
 
 .cli-help-command-link::after {
-  content: " ↗";
+  content: " â†—";
   color: var(--edera-cyan);
   font-weight: 700;
 }
