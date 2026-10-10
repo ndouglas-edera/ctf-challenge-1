@@ -334,7 +334,7 @@ interface Stage {
 const stages: Stage[] = [
   {
     title: "Zone kernel",
-    objective: "Find the zone kernel image pinned to a workload.",
+    objective: "Find the zone kernel image pinned to a customer workload.",
     brief: [
       "Every Edera-backed pod pins the kernel it boots in a",
       "metadata annotation. Read a pod and submit that image.",
