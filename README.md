@@ -27,7 +27,7 @@ Edera supports heterogeneous, mixed-workload clusters, but running mixed runtime
 ```
 kubectl describe pod -n customer-c   recommendation-c
 ```
-Technically, an Edera-enabled node retains the default containerd runtime alongside the Edera runtime handler in its CRI configuration. However, running both isolated Edera pods and standard containers side-by-side on the exact same physical or virtual node leads to operational friction:
+Technically, an Edera-enabled node retains the default ```containerd``` runtime alongside the Edera runtime handler in its ```CRI``` configuration. However, running both isolated Edera pods and standard containers side-by-side on the exact same physical or virtual node leads to operational friction:
 <br/><br/>
 Edera partitions host resources between ```dom0``` (the host system context) and ```domU``` (the isolated zone execution context). By default, ```dom0``` receives a constrained fraction of node memory (~35%). Running standard workloads in ```dom0``` can trigger out-of-memory (OOM) evictions before ```kubelet``` detects node-level memory pressure.
 
