@@ -2395,8 +2395,8 @@ function renderFlags(): string {
           state.captured.length === 0
             ? `
             <div class="flag-empty">
-              <div>Run 'objective' in the terminal to start.</div>
-              <div>Submit your answer with 'submit &lt;flag&gt;'.</div>
+              <div>Run <code>objective</code> in the terminal to start.</div>
+              <div>Submit your answer with <code>submit &lt;flag&gt;</code>.</div>
             </div>`
             : state.captured
                 .map(
