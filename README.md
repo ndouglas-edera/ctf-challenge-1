@@ -66,21 +66,32 @@ Those are the variants accepted by ```zone launch --kernel-variant``` and the ``
 Each variant name maps to a specific OCI image that contains that kernel. Edera ships with some default kernel variants, additional variants may be defined by the user. In a real-world scenario, you may want to host your own kernels in an OCI registry, and define your own site-local kernel variants as well.
 
 ## Flag 4
-Insert Description.
-
+This is a basic part of any **[troubleshooting zone issue](https://docs.edera.dev/guides/cli-user-guide/#troubleshooting-common-issues)**. The usual problem is that the Zone gets stuck in a “```creating```” state. In this scenario, we recommend checking the daemon status using: 
+```
+protect host status
+```
+Look for resource constraints in the logs and ensure sufficient CPU/memory resources are available. <br/>
+With the Edera Protect CLI, we offer selectors to help you filter resources by **state**. For example:
+```
+protect zone list --selector status.state=failed
+```
+List only running workloads, specifically:
+```
+protect workload list --selector status.state=running
+```
 <br/><br/>
 
 ## Answers
 
 | Objective                     | Commands                                      | Answer |
 | :---------------------------- | :-----------------------------------------------------------: | -----: |
-| 1. Zone kernel image          | `kubectl describe pod image-processor-a -n customer-a`       | `submit ghcr.io/edera-dev/zone-kernel:6.15` |
+| 1. Zone kernel image          | `kubectl describe pod image-processor-a -n customer-a`        | `submit ghcr.io/edera-dev/zone-kernel:6.15` |
 | 2. Cached digests             | `protect image list`                                          | <code>submit sha256:8c4f2a91...</code> |
 | 3. Kernel variants            | `protect image list-kernel-variants`                          | `submit ebpf` |
 | 4. Failed zone                | `protect zone list --selector status.state=failed`            | `submit zone-analytics-d` |
 | 5. List zones                 | `protect zone list`                                           | |
 | 5. List workloads             | `protect workload list`                                       | |
-| 5. Find workload without zone | `kubectl get pod -n customer-c recommendation-c -o yaml`    | `submit recommendation-c` |
+| 5. Find workload without zone | `kubectl get pod -n customer-c recommendation-c -o yaml`      | `submit recommendation-c` |
 | 6. Launch a zone              | `protect zone launch --name my-zone`                          | |
 | 6. Launch pod in zone         | `protect workload launch --zone my-zone --name web-server nginx:latest` | |
 | 6. Check the logs             | `protect zone logs my-zone --follow`                          | `submit EDERA{ZONE_WORKLOAD_LAUNCH}` |
