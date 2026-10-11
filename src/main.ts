@@ -2636,7 +2636,7 @@ function render(): void {
             <p>
               Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
               Each objective asks for values that only appears in the terminal.<br/>
-              Capture the 6 flags to complete the exercise.
+              Capture the <b>6 flags</b> to complete the exercise.
             </p>
           </div>
 
