@@ -317,10 +317,6 @@ const kernelVariants: KernelVariant[] = [
   },
 ];
 
-/* -------------------------------------------------------------------------- */
-/* Stages                                                                     */
-/* -------------------------------------------------------------------------- */
-
 interface Stage {
   title: string;
   objective: string;
@@ -2610,12 +2606,7 @@ function render(): void {
     <div class="game">
       <header class="top-header">
         <a href="https://edera.dev" class="logo-link">EDERA</a>
-        <a
-          href="https://on.edera.dev"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="edera-free-cta"
-        >Try Edera for free →</a>
+        <a href="https://on.edera.dev" target="_blank" class="edera-free-cta">Try Edera for free →</a>
       </header>
 
       <main class="main">
@@ -2628,14 +2619,14 @@ function render(): void {
             </h1>
 
             <p>
-              You have audit access to a single Kubernetes node running <a class="mission-doc-link" href="https://on.edera.dev/" target="_blank" rel="noreferrer">Edera</a>.
+              You have audit access to a single Kubernetes node running <a class="mission-doc-link" href="https://on.edera.dev/" target="_blank">Edera</a>.
               <br/> Some workloads on it boot their own kernel. At least one
               does not.
             </p>
 
             <p>
-              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
-              Capture all <b>6 flags</b> to complete this <b>Edera Runtime</b> CTF challenge.
+              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank">protect</a> CLI tooling. <br/>
+              Capture all <b>6 flags</b> to complete this <a class="mission-doc-link" href="https://tfir.io/edera-alex-zenla-hardened-runtime-container-security/" target="_blank">Edera Runtime</a> CTF challenge.
             </p>
           </div>
 
@@ -2735,23 +2726,13 @@ function render(): void {
             : ""
         }
 
-        <div
-          class="edera-free-bottom"
-        >
-          <a
-            href="https://ndouglas-edera.github.io/my-webernetes-demo/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Try our Webernetes Demo →</a>
+        <div class="edera-free-bottom">
+          <a href="https://ndouglas-edera.github.io/my-webernetes-demo/" target="_blank">Try our Webernetes Demo →</a>
         </div>
 
         <footer class="edera-footer">
-          <img
-            src="https://docs.edera.dev/Ivy%20Headphones.png"
-            alt="Ivy from Edera"
-            loading="lazy"
-          />
-          <span>Made with love by the team at <a href="https://edera.dev/love" target="_blank" rel="noopener noreferrer">Edera</a></span>
+          <img src="https://docs.edera.dev/Ivy%20Headphones.png" alt="Ivy from Edera" loading="lazy" />
+          <span>Made with love by the team at <a href="https://edera.dev/love" target="_blank">Edera</a></span>
         </footer>
       </main>
     </div>
