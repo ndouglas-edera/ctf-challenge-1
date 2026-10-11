@@ -2548,7 +2548,7 @@ function renderTerminal(): string {
                 <div class="terminal-brand">EDERA</div>
                 <div class="terminal-lab">ISOLATION RESEARCH LAB</div>
                 <div class="terminal-challenge">
-                  THE BOUNDARY / SECURITY CHALLENGE 01
+                  SECURITY CHALLENGE 01
                 </div>
 
                 <div class="terminal-rule"></div>
