@@ -2635,7 +2635,7 @@ function render(): void {
 
             <p>
               Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank" rel="noreferrer">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank" rel="noreferrer">protect</a> CLI tooling. <br/>
-              Capture all <b>6 flags</b> to complete the inaugural CTF challenge.
+              Capture all <b>6 flags</b> to complete the <b>Edera Runtime</b> CTF challenge.
             </p>
           </div>
 
