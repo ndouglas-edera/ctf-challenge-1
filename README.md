@@ -79,6 +79,30 @@ List only running workloads, specifically:
 ```
 protect workload list --selector status.state=running
 ```
+
+## Flag 5
+I'll add something profound at a later day, but to capture this flag you literally just need to find workload without an associated zone:	
+```
+kubectl get pod -n customer-c recommendation-c -o yaml
+```
+**Answer**:
+```
+submit recommendation-c
+```
+## Flag 6
+Launch a zone specifically called ```my-zone```:
+```
+protect zone launch --name my-zone	
+```
+Launch a pod into the ```my-zone``` zone:	
+```
+protect workload launch --zone my-zone --name web-server nginx:latest	
+```
+Finally, check the logs	to find the final flag:
+```
+protect zone logs my-zone --follow
+```
+
 <br/><br/>
 
 ## Answers
