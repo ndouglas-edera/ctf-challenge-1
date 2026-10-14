@@ -2618,16 +2618,19 @@ function render(): void {
               <em>#1</em>
             </h1>
 
-            <p>
-              You have audit access to a single Kubernetes node running <a class="mission-doc-link" href="https://on.edera.dev/" target="_blank">Edera</a>.
-              <br/> Some workloads on it boot their own kernel. At least one
-              does not.
-            </p>
+  <div className="mission-description">
+  <p>
+    You have audit access to a single Kubernetes node
+    running <strong>Edera</strong>. Some workloads on it
+    boot their own kernel. At least one does not.
+  </p>
 
-            <p>
-              Work through the cluster with <a class="mission-doc-link" href="https://kubernetes.io/docs/reference/kubectl/" target="_blank">kubectl</a> and the <a class="mission-doc-link" href="https://docs.edera.dev/guides/cli-user-guide/" target="_blank">protect</a> CLI tooling. <br/>
-              Capture all <b>6 flags</b> to complete this <a class="mission-doc-link" href="https://tfir.io/edera-alex-zenla-hardened-runtime-container-security/" target="_blank">Edera Runtime</a> CTF challenge.
-            </p>
+  <p>
+    Work through the cluster with <strong>kubectl</strong>
+    and the <strong>protect</strong> CLI tooling.
+    Capture all 6 flags to complete the exercise.
+  </p>
+</div>
           </div>
 
           <div class="mission-meta">
