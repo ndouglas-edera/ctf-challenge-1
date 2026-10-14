@@ -2626,7 +2626,7 @@ function render(): void {
 
   <p>
     Work through the cluster with <strong>kubectl</strong>
-    & the <strong>protect</strong> CLI.<br> 
+    & <strong>Edera</strong>.<br> 
     Capture all <b>6 flags</b> to complete the exercise.
   </p>
 </div>
