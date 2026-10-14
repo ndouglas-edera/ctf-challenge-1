@@ -2620,7 +2620,7 @@ function render(): void {
 
   <div className="mission-description">
   <p>
-    You have audit access to a Kubernetes node running <strong>Edera</strong>.<br/> 
+    You have audit access to a Kubernetes node running <strong>Edera</strong>. 
     Some workloads on it boot their own kernel. At least one does not.
   </p>
 
