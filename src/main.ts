@@ -2621,7 +2621,7 @@ function render(): void {
   <div className="mission-description">
   <p>
     You have audit access to a node running <strong>Edera</strong>.<br> 
-    Some workloads on it boot their own kernel. <br>At least one does not.
+    Some workloads on it boot their own kernel. <br><u>At least one does not</u>.
   </p>
 
   <p>
