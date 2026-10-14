@@ -2620,15 +2620,13 @@ function render(): void {
 
   <div className="mission-description">
   <p>
-    You have audit access to a single Kubernetes node
-    running <strong>Edera</strong>.<br/> Some workloads on it
-    boot their own kernel.<br/> At least one does not.
+    You have audit access to a Kubernetes node running <strong>Edera</strong>.<br/> 
+    Some workloads on it boot their own kernel. At least one does not.
   </p>
 
   <p>
     Work through the cluster with <strong>kubectl</strong>
-    and the <strong>protect</strong> CLI tooling.<br/>
-    Capture all 6 flags to complete the exercise.
+    and the <strong>protect</strong> CLI tooling. Capture all <b>6 flags</b> to complete the exercise.
   </p>
 </div>
           </div>
