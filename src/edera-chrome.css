@@ -225,3 +225,25 @@
     font-size: 10px;
   }
 }
+
+.mission-description p {
+  margin: 0 0 1rem;
+  line-height: 1.6;
+}
+
+/* Ensure description is tider on mobile display*/
+@media (max-width: 600px) {
+  .mission-description {
+    font-size: 1rem;
+    line-height: 1.5;
+    max-width: 100%;
+  }
+
+  .mission-description p {
+    margin-bottom: 0.85rem;
+  }
+
+  .mission-description p:last-child {
+    margin-bottom: 0;
+  }
+}
